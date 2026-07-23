@@ -7,10 +7,21 @@ import { Loader2 } from 'lucide-react'
 import { createMaterial } from '../api'
 import { FileUploadZone } from '@/shared/ui/FileUploadZone'
 
+const MAX_FILE_SIZE = 100 * 1024 * 1024
+const ALLOWED_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx']
+
 const schema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  file: z.instanceof(File).optional().nullable(),
+  file: z.instanceof(File)
+    .optional()
+    .nullable()
+    .refine((file) => !file || file.size <= MAX_FILE_SIZE, 'File must be 100 MB or smaller')
+    .refine((file) => {
+      if (!file) return true
+      const extension = file.name.split('.').pop()?.toLowerCase()
+      return extension ? ALLOWED_EXTENSIONS.includes(extension) : false
+    }, 'Allowed formats: PDF, JPG, PNG, DOC, DOCX'),
 })
 
 type FormData = z.infer<typeof schema>
@@ -51,7 +62,14 @@ export function MaterialForm({ groupId, onSuccess }: MaterialFormProps) {
       onSuccess?.()
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || err.message || 'Failed to upload material'
+      const data = err.response?.data
+      const msg =
+        data?.detail ||
+        data?.file?.[0] ||
+        data?.group?.[0] ||
+        data?.title?.[0] ||
+        err.message ||
+        'Failed to upload material'
       toast.error(msg)
     },
   })
@@ -97,12 +115,13 @@ export function MaterialForm({ groupId, onSuccess }: MaterialFormProps) {
               value={field.value ?? null}
               onChange={field.onChange}
               disabled={mutation.isPending}
-              accept="*/*"
+              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
               label="Drop your file here"
-              hint="Any file format, max 50MB"
+              hint="PDF, JPG, PNG, DOC, or DOCX. Max 100 MB"
             />
           )}
         />
+        {errors.file && <p className="mt-1 text-xs text-red-400">{errors.file.message}</p>}
       </div>
 
       <button

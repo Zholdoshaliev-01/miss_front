@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Copy, Users, BookOpen, ClipboardCheck, FileText,
   Calendar, Plus, MoreHorizontal, Download, Search, Loader2,
+  Check, X, UserPlus,
 } from 'lucide-react'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { toast } from 'sonner'
 
-import { getGroupDetail, getGroupStudents } from '@/modules/groups/api'
+import { approveStudent, getGroupDetail, getGroupStudents, getPendingStudents, rejectStudent } from '@/modules/groups/api'
 import { getMaterials } from '@/modules/materials/api'
 import { getHomeworks } from '@/modules/homeworks/api'
 import { getTests } from '@/modules/tests/api'
@@ -20,6 +21,7 @@ import { HomeworkForm } from '@/modules/homeworks/components/HomeworkForm'
 import { TestForm } from '@/modules/tests/components/TestForm'
 
 export default function GroupDetailPage() {
+  const queryClient = useQueryClient()
   const { groupId: groupIdStr } = useParams()
   const groupId = Number(groupIdStr)
   const [activeTab, setActiveTab] = useState('students')
@@ -38,6 +40,12 @@ export default function GroupDetailPage() {
     queryKey: ['group-students', groupId],
     queryFn: () => getGroupStudents(groupId),
     enabled: !!groupId && activeTab === 'students',
+  })
+
+  const { data: requestsData, isLoading: isLoadingRequests } = useQuery({
+    queryKey: ['group-requests', groupId],
+    queryFn: () => getPendingStudents(groupId),
+    enabled: !!groupId,
   })
 
   const { data: materialsData, isLoading: isLoadingMaterials } = useQuery({
@@ -62,6 +70,31 @@ export default function GroupDetailPage() {
   const materials = materialsData?.results ?? []
   const homeworks = homeworksData?.results ?? []
   const tests = testsData?.results ?? []
+  const requests = requestsData?.results ?? []
+
+  const approveMutation = useMutation({
+    mutationFn: (studentId: number) => approveStudent(studentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['group-requests', groupId] })
+      queryClient.invalidateQueries({ queryKey: ['group-students', groupId] })
+      queryClient.invalidateQueries({ queryKey: ['group', groupId] })
+      toast.success('Student approved')
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.detail || err.message || 'Failed to approve student')
+    },
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: (studentId: number) => rejectStudent(studentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['group-requests', groupId] })
+      toast.success('Request rejected')
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.detail || err.message || 'Failed to reject request')
+    },
+  })
 
   const filteredStudents = students.filter(s => 
     s.full_name?.toLowerCase().includes(search.toLowerCase()) || 
@@ -69,10 +102,11 @@ export default function GroupDetailPage() {
   )
 
   const tabs = [
-    { id: 'students', label: 'Students', icon: Users, count: studentsData?.count ?? 0 },
-    { id: 'materials', label: 'Materials', icon: BookOpen, count: materialsData?.count ?? 0 },
-    { id: 'homeworks', label: 'Homework', icon: FileText, count: homeworksData?.count ?? 0 },
-    { id: 'tests', label: 'Tests', icon: ClipboardCheck, count: testsData?.count ?? 0 },
+    { id: 'students', label: 'Students', icon: Users, count: Number(group?.students_count) || studentsData?.count || 0 },
+    { id: 'requests', label: 'Requests', icon: UserPlus, count: requestsData?.count ?? 0 },
+    { id: 'materials', label: 'Materials', icon: BookOpen, count: Number(group?.materials_count) || materialsData?.count || 0 },
+    { id: 'homeworks', label: 'Homework', icon: FileText, count: Number(group?.homeworks_count) || homeworksData?.count || 0 },
+    { id: 'tests', label: 'Tests', icon: ClipboardCheck, count: Number(group?.tests_count) || testsData?.count || 0 },
   ]
 
   if (isLoadingGroup) {
@@ -214,6 +248,75 @@ export default function GroupDetailPage() {
                           </td>
                           <td className="px-5 py-3.5 text-white/35 hidden md:table-cell">
                             {new Date(s.joined_at).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'requests' && (
+          <div className="space-y-4">
+            <div className="glass-card overflow-hidden">
+              {isLoadingRequests ? (
+                <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-accent" /></div>
+              ) : requests.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <UserPlus className="h-9 w-9 text-white/15" />
+                  <p className="mt-3 text-sm font-medium text-white/50">No pending requests</p>
+                  <p className="mt-1 text-sm text-white/30">Students who join by invite link will appear here.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-white/[0.06]">
+                        <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/35">Student</th>
+                        <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/35 hidden sm:table-cell">Email</th>
+                        <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/35 hidden md:table-cell">Requested</th>
+                        <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/35 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {requests.map((s) => (
+                        <tr key={s.id} className="border-b border-white/[0.04] transition hover:bg-accent/[0.03]">
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-accent/25 to-purple-500/25 text-xs font-bold text-white/70">
+                                {s.full_name?.[0]?.toUpperCase() ?? '?'}
+                              </div>
+                              <span className="font-medium text-white/85">{s.full_name}</span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-3.5 text-white/45 hidden sm:table-cell">{s.email}</td>
+                          <td className="px-5 py-3.5 text-white/35 hidden md:table-cell">
+                            {s.joined_at ? new Date(s.joined_at).toLocaleDateString() : '-'}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                className="btn-primary !py-1.5 !px-3 !text-xs"
+                                disabled={approveMutation.isPending || rejectMutation.isPending}
+                                onClick={() => approveMutation.mutate(s.id)}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-secondary !py-1.5 !px-3 !text-xs"
+                                disabled={approveMutation.isPending || rejectMutation.isPending}
+                                onClick={() => rejectMutation.mutate(s.id)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                                Reject
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

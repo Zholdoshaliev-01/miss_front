@@ -8,6 +8,8 @@ import {
   Menu,
   MessageSquare,
   BookOpen,
+  ClipboardCheck,
+  FileText,
   Users,
   Settings,
 } from 'lucide-react'
@@ -23,6 +25,8 @@ const studentNav = [
   { to: '/student/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/student/groups', label: 'My Groups', icon: Users },
   { to: '/student/materials', label: 'Materials', icon: BookOpen },
+  { to: '/student/homeworks', label: 'Homework', icon: FileText },
+  { to: '/student/tests', label: 'Tests', icon: ClipboardCheck },
   { to: '/student/chat', label: 'Chat', icon: MessageSquare },
   { to: '/student/profile', label: 'Profile', icon: UserRound },
   { to: '/student/settings', label: 'Settings', icon: Settings },

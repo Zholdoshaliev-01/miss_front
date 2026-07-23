@@ -6,6 +6,25 @@ import { toast } from 'sonner'
 import { joinGroup } from '../api'
 import axios from 'axios'
 
+function extractInviteCode(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+
+  try {
+    const decoded = decodeURIComponent(trimmed)
+    const joinMatch = decoded.match(/\/join\/([^/?#]+)/)
+    if (joinMatch?.[1]) return joinMatch[1]
+
+    const url = new URL(decoded)
+    const pathCode = url.pathname.split('/').filter(Boolean).pop()
+    return pathCode || decoded
+  } catch {
+    const joinMatch = trimmed.match(/\/join\/([^/?#]+)/)
+    if (joinMatch?.[1]) return joinMatch[1]
+    return trimmed
+  }
+}
+
 function getErrorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
     const data = err.response?.data as Record<string, unknown> | undefined
@@ -35,9 +54,9 @@ export function JoinLandingView() {
         className="mt-8 space-y-4"
         onSubmit={(e) => {
           e.preventDefault()
-          const trimmed = code.trim()
-          if (!trimmed) return
-          navigate(`/join/${encodeURIComponent(trimmed)}`, { replace: true })
+          const inviteCode = extractInviteCode(code)
+          if (!inviteCode) return
+          navigate(`/join/${encodeURIComponent(inviteCode)}`, { replace: true })
         }}
       >
         <div>
@@ -65,11 +84,12 @@ export function JoinLandingView() {
 }
 
 export default function JoinPage() {
-  const { inviteCode } = useParams()
+  const params = useParams()
   const navigate = useNavigate()
+  const inviteCode = extractInviteCode(params.inviteCode ?? params['*'] ?? '')
 
   const mutation = useMutation({
-    mutationFn: () => joinGroup(inviteCode!),
+    mutationFn: () => joinGroup(inviteCode),
     onSuccess: (data) => {
       toast.success(data.detail || 'Request sent!')
       navigate('/pending', { replace: true })
@@ -94,7 +114,7 @@ export default function JoinPage() {
       <button
         type="button"
         className="btn-primary mt-8 w-full !py-3"
-        disabled={mutation.isPending}
+        disabled={mutation.isPending || !inviteCode}
         onClick={() => mutation.mutate()}
       >
         {mutation.isPending ? (

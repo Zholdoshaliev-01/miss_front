@@ -5,12 +5,29 @@ import { getStudentGroups } from '@/modules/student/api'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
-function formatDate(dateStr: string) {
+function formatDate(dateStr?: string) {
+  if (!dateStr) return 'recently'
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return 'recently'
   return new Date(dateStr).toLocaleDateString([], {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   })
+}
+
+function normalizeStudentGroup(raw: any) {
+  return {
+    id: raw.group_id ?? raw.id,
+    membershipId: raw.id,
+    group_name: raw.group_name ?? raw.name ?? 'Untitled group',
+    group_image: raw.group_image ?? null,
+    level: raw.group_level ?? raw.level ?? '',
+    joined_at: raw.joined_at ?? raw.created_date,
+    materials_count: raw.materials_count ?? 0,
+    homeworks_count: raw.homeworks_count ?? 0,
+    tests_count: raw.tests_count ?? 0,
+  }
 }
 
 export default function StudentGroupsPage() {
@@ -20,9 +37,10 @@ export default function StudentGroupsPage() {
   })
 
   // Handle both paginated response ({ results: [...] }) and flat array ([...])
-  const groups: any[] = Array.isArray(rawGroupsData) 
+  const groups = (Array.isArray(rawGroupsData) 
     ? rawGroupsData 
     : (rawGroupsData as any)?.results ?? []
+  ).map(normalizeStudentGroup)
 
   return (
     <div className="space-y-6">
@@ -70,8 +88,8 @@ export default function StudentGroupsPage() {
               : null
 
             return (
-              <div key={group.id} className="glass-card glass-card-hover card-shine group p-5">
-                <div className="flex items-start gap-4">
+              <div key={group.membershipId} className="glass-card glass-card-hover card-shine group p-5">
+                <Link to={`/student/groups/${group.id}`} className="flex items-start gap-4 rounded-xl transition hover:bg-white/[0.02]">
                   {imgSrc ? (
                     <img 
                       src={imgSrc} 
@@ -91,21 +109,21 @@ export default function StudentGroupsPage() {
                     <div className="mt-1 flex flex-col gap-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
                       <span className="inline-flex items-center gap-1.5 font-medium">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-                        Level {group.level}
+                        {group.level ? `Level ${group.level}` : 'Level not set'}
                       </span>
                       <span style={{ color: 'var(--color-text-faint)' }}>
-                        Joined {formatDate(group.created_date)}
+                        Joined {formatDate(group.joined_at)}
                       </span>
                     </div>
                   </div>
-                </div>
+                </Link>
 
                 <div className="mt-5 grid grid-cols-2 gap-2 border-t pt-4" style={{ borderColor: 'var(--border-color)' }}>
                   <Link to={`/student/materials?group=${group.id}`} className="btn-secondary !py-1.5 !text-xs w-full text-center">
-                    Materials
+                    Materials ({Number(group.materials_count) || 0})
                   </Link>
-                  <Link to={`/student/dashboard?group=${group.id}`} className="btn-secondary !py-1.5 !text-xs w-full text-center">
-                    Tasks
+                  <Link to={`/student/homeworks?group=${group.id}`} className="btn-secondary !py-1.5 !text-xs w-full text-center">
+                    Tasks ({Number(group.homeworks_count) || 0})
                   </Link>
                 </div>
               </div>

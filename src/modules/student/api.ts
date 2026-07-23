@@ -26,7 +26,7 @@ export async function joinGroup(inviteCode: string) {
 import type { Material } from '@/modules/materials/types'
 
 export async function getStudentMaterials(groupId: number, params?: Record<string, string>) {
-  const { data } = await api.get<PaginatedResponse<Material>>(`/groups/${groupId}/materials/`, { params })
+  const { data } = await api.get<PaginatedResponse<Material>>(`/student/groups/${groupId}/materials/`, { params })
   return data
 }
 
@@ -44,6 +44,42 @@ export interface StudentHomework {
 
 export async function getStudentHomeworks(groupId: number, params?: Record<string, string>) {
   const { data } = await api.get<PaginatedResponse<StudentHomework>>(`/student/groups/${groupId}/homeworks/`, { params })
+  return data
+}
+
+/* ─── Student tests ─── */
+
+export interface StudentTest {
+  id: number
+  group: number
+  title: string
+  created_at: string
+  questions_count: number
+}
+
+export async function getStudentTests(groupId: number, params?: Record<string, string>) {
+  const { data } = await api.get<PaginatedResponse<StudentTest>>(`/student/groups/${groupId}/tests/`, { params })
+  return data
+}
+
+export interface StudentLeaderboardEntry {
+  student_id: number
+  full_name: string
+  email: string
+  group_id?: number
+  group_name?: string
+  tests_total_score: number
+  homeworks_done: number
+  rating_points: number
+}
+
+export async function getStudentGlobalLeaderboard() {
+  const { data } = await api.get<PaginatedResponse<StudentLeaderboardEntry>>('/student/leaderboard/')
+  return data
+}
+
+export async function getStudentGroupLeaderboard(groupId: number) {
+  const { data } = await api.get<PaginatedResponse<StudentLeaderboardEntry>>(`/student/groups/${groupId}/leaderboard/`)
   return data
 }
 
@@ -69,7 +105,7 @@ export async function startStudentTest(testId: number) {
   return data
 }
 
-export async function submitStudentTest(resultId: number, answers: Record<number, number>) {
+export async function submitStudentTest(resultId: number, answers: { question_id: number; answer_id: number }[]) {
   const { data } = await api.post(`/student/test-results/${resultId}/submit/`, { answers })
   return data
 }

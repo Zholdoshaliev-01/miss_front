@@ -17,7 +17,7 @@ const sections = [
     desc: 'View assigned homework and submit your answers.',
     color: 'from-amber-500 to-orange-400',
     glow: 'rgba(245,158,11,0.15)',
-    link: '/student/dashboard',
+    link: '/student/homeworks',
   },
   {
     icon: ClipboardCheck,
@@ -25,7 +25,7 @@ const sections = [
     desc: 'Take tests and view your results.',
     color: 'from-violet-500 to-purple-400',
     glow: 'rgba(139,92,246,0.15)',
-    link: '/student/dashboard',
+    link: '/student/tests',
   },
 ]
 

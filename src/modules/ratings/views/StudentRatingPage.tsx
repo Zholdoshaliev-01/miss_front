@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Trophy, Medal, Star, Users, Loader2, Search, ChevronDown } from 'lucide-react'
+import { Trophy, Medal, Star, Users, Loader2, Search } from 'lucide-react'
 import { getGroups, getGroupLeaderboard, getGlobalLeaderboard } from '@/modules/groups/api'
 import type { LeaderboardEntry } from '@/modules/groups/api'
+import { getStudentGlobalLeaderboard, getStudentGroupLeaderboard, getStudentGroups } from '@/modules/student/api'
 import { PageHeader } from '@/shared/ui/PageHeader'
+import { useAuthStore } from '@/modules/auth/store/authStore'
 
 function getRankBadge(index: number) {
   if (index === 0)
@@ -34,25 +36,36 @@ function getRankBadge(index: number) {
 }
 
 export default function StudentRatingPage() {
+  const user = useAuthStore((state) => state.user)
+  const isStudent = user?.role === 'student'
   const [selectedGroupId, setSelectedGroupId] = useState<number | 'all'>('all')
   const [search, setSearch] = useState('')
 
   const { data: paginatedGroups } = useQuery({
-    queryKey: ['groups'],
-    queryFn: () => getGroups(),
+    queryKey: [isStudent ? 'student-groups' : 'groups'],
+    queryFn: () => isStudent ? getStudentGroups() : getGroups(),
   })
 
-  const groups = paginatedGroups?.results ?? []
+  const rawGroups = Array.isArray(paginatedGroups)
+    ? paginatedGroups
+    : paginatedGroups?.results ?? []
+
+  const groups = rawGroups.map((group: any) => ({
+    id: group.group_id ?? group.id,
+    group_name: group.group_name ?? group.name ?? 'Untitled group',
+  }))
 
   const { data: leaderboardData, isLoading } = useQuery({
-    queryKey: ['leaderboard', selectedGroupId],
+    queryKey: [isStudent ? 'student-leaderboard' : 'leaderboard', selectedGroupId],
     queryFn: () =>
       selectedGroupId === 'all'
-        ? getGlobalLeaderboard()
-        : getGroupLeaderboard(selectedGroupId),
+        ? (isStudent ? getStudentGlobalLeaderboard() : getGlobalLeaderboard())
+        : (isStudent ? getStudentGroupLeaderboard(selectedGroupId) : getGroupLeaderboard(selectedGroupId)),
   })
 
-  const entries: LeaderboardEntry[] = leaderboardData?.results ?? []
+  const entries: LeaderboardEntry[] = Array.isArray(leaderboardData)
+    ? leaderboardData
+    : leaderboardData?.results ?? []
 
   const filteredEntries = entries.filter(
     (e) =>
@@ -69,9 +82,41 @@ export default function StudentRatingPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Student Rating"
-        description="Track student performance across groups with leaderboard rankings."
+        title={isStudent ? 'My Rating' : 'Student Rating'}
+        description={
+          isStudent
+            ? 'Compare your progress with every student studying with your teacher.'
+            : 'Track student performance across groups with leaderboard rankings.'
+        }
       />
+
+      {isStudent && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setSelectedGroupId('all')}
+            className={[
+              'glass-card glass-card-hover p-5 text-left transition',
+              selectedGroupId === 'all' ? 'border-accent/40 bg-accent/[0.07]' : '',
+            ].join(' ')}
+          >
+            <div className="font-heading text-base font-semibold text-white">Teacher Rating</div>
+            <p className="mt-1 text-sm text-white/40">All students who study with the same teacher, across every group.</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedGroupId(groups[0]?.id ?? 'all')}
+            className={[
+              'glass-card glass-card-hover p-5 text-left transition',
+              selectedGroupId !== 'all' ? 'border-accent/40 bg-accent/[0.07]' : '',
+            ].join(' ')}
+            disabled={groups.length === 0}
+          >
+            <div className="font-heading text-base font-semibold text-white">Group Rating</div>
+            <p className="mt-1 text-sm text-white/40">Only students from one selected group.</p>
+          </button>
+        </div>
+      )}
 
       {/* Stats strip */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -102,25 +147,40 @@ export default function StudentRatingPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        {/* Group filter */}
-        <div className="relative w-full sm:w-64">
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-text-faint)' }} />
-          <select
-            value={selectedGroupId}
-            onChange={(e) => setSelectedGroupId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-            className="input-field w-full appearance-none !pr-10"
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedGroupId('all')}
+            className={[
+              'rounded-xl border px-4 py-2 text-sm font-medium transition',
+              selectedGroupId === 'all'
+                ? 'border-accent/60 bg-accent/15 text-white shadow-[0_0_22px_rgba(99,102,241,0.16)]'
+                : 'border-white/10 bg-white/[0.03] text-white/55 hover:border-white/20 hover:bg-white/[0.06] hover:text-white/75',
+            ].join(' ')}
           >
-            <option value="all">All Groups</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.group_name}
-              </option>
-            ))}
-          </select>
+            {isStudent ? 'Teacher rating' : 'All Groups'}
+          </button>
+          {groups.map((group) => {
+            const selected = selectedGroupId === group.id
+            return (
+              <button
+                key={group.id}
+                type="button"
+                onClick={() => setSelectedGroupId(group.id)}
+                className={[
+                  'rounded-xl border px-4 py-2 text-sm font-medium transition',
+                  selected
+                    ? 'border-accent/60 bg-accent/15 text-white shadow-[0_0_22px_rgba(99,102,241,0.16)]'
+                    : 'border-white/10 bg-white/[0.03] text-white/55 hover:border-white/20 hover:bg-white/[0.06] hover:text-white/75',
+                ].join(' ')}
+              >
+                {group.group_name}
+              </button>
+            )
+          })}
         </div>
 
-        {/* Search */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-text-faint)' }} />
           <input

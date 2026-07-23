@@ -108,7 +108,7 @@ export async function startStudentTest(testId: number) {
   return data
 }
 
-export async function submitStudentTest(resultId: number, answers: Record<number, number>) {
+export async function submitStudentTest(resultId: number, answers: { question_id: number; answer_id: number }[]) {
   const { data } = await api.post(`/student/test-results/${resultId}/submit/`, { answers })
   return data
 }

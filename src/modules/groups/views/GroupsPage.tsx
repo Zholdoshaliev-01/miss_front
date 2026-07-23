@@ -1,14 +1,22 @@
 import { useState } from 'react'
 import { Plus, Users, BookOpen, ClipboardCheck, FileText, Loader2, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { EmptyState } from '@/shared/ui/EmptyState'
-import { getGroups, createGroup } from '../api'
+import { getGroupDetail, getGroups, createGroup } from '../api'
 import { createRoom } from '@/modules/chat/api'
 import { useAuthStore } from '@/modules/auth/store/authStore'
 import type { Group } from '../types'
+
+const LEVEL_OPTIONS = [
+  { value: 'A1', label: 'Beginner', description: 'A1' },
+  { value: 'A2', label: 'Elementary', description: 'A2' },
+  { value: 'B1', label: 'Intermediate', description: 'B1' },
+  { value: 'B2', label: 'Upper Intermediate', description: 'B2' },
+  { value: 'C1', label: 'Advanced', description: 'C1' },
+]
 
 function GroupCard({ group }: { group: Group }) {
   // Use a fallback gradient if color isn't provided by API
@@ -73,6 +81,7 @@ export default function GroupsPage() {
   const [showModal, setShowModal] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupLevel, setNewGroupLevel] = useState('A1')
+  const trimmedGroupName = newGroupName.trim()
 
   const { data: paginatedGroups, isLoading } = useQuery({
     queryKey: ['groups'],
@@ -82,7 +91,7 @@ export default function GroupsPage() {
   const createGroupMut = useMutation({
     mutationFn: async () => {
       // 1. Create in Django
-      const group = await createGroup({ group_name: newGroupName, level: newGroupLevel })
+      const group = await createGroup({ group_name: trimmedGroupName, level: newGroupLevel })
       
       // 2. Try to sync with Chat API automatically
       try {
@@ -103,12 +112,27 @@ export default function GroupsPage() {
       setNewGroupName('')
       setNewGroupLevel('A1')
     },
-    onError: () => {
-      toast.error('Failed to create group')
+    onError: (err: any) => {
+      const data = err.response?.data
+      const msg =
+        data?.detail ||
+        data?.group_name?.[0] ||
+        data?.level?.[0] ||
+        err.message ||
+        'Failed to create group'
+      toast.error(msg)
     }
   })
 
   const groups = paginatedGroups?.results || []
+  const groupDetailQueries = useQueries({
+    queries: groups.map((group) => ({
+      queryKey: ['group', group.id],
+      queryFn: () => getGroupDetail(group.id),
+      enabled: Boolean(group.id),
+    })),
+  })
+  const groupsWithDetails = groups.map((group, index) => groupDetailQueries[index]?.data ?? group)
   const hasGroups = groups.length > 0
 
   if (isLoading) {
@@ -135,24 +159,24 @@ export default function GroupsPage() {
       {/* Summary strip */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="glass-card p-4 text-center">
-          <div className="font-heading text-2xl font-bold" style={{ color: 'var(--color-text)' }}>{groups.length}</div>
+          <div className="font-heading text-2xl font-bold" style={{ color: 'var(--color-text)' }}>{groupsWithDetails.length}</div>
           <div className="text-xs" style={{ color: 'var(--color-text-faint)' }}>Total Groups</div>
         </div>
         <div className="glass-card p-4 text-center">
           <div className="font-heading text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
-            {groups.reduce((a, g) => a + (Number(g.students_count) || 0), 0)}
+            {groupsWithDetails.reduce((a, g) => a + (Number(g.students_count) || 0), 0)}
           </div>
           <div className="text-xs" style={{ color: 'var(--color-text-faint)' }}>Total Students</div>
         </div>
         <div className="glass-card p-4 text-center">
           <div className="font-heading text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
-            {groups.reduce((a, g) => a + (Number(g.materials_count) || 0), 0)}
+            {groupsWithDetails.reduce((a, g) => a + (Number(g.materials_count) || 0), 0)}
           </div>
           <div className="text-xs" style={{ color: 'var(--color-text-faint)' }}>Materials</div>
         </div>
         <div className="glass-card p-4 text-center">
           <div className="font-heading text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
-            {groups.reduce((a, g) => a + (Number(g.tests_count) || 0), 0)}
+            {groupsWithDetails.reduce((a, g) => a + (Number(g.tests_count) || 0), 0)}
           </div>
           <div className="text-xs" style={{ color: 'var(--color-text-faint)' }}>Tests</div>
         </div>
@@ -160,7 +184,7 @@ export default function GroupsPage() {
 
       {hasGroups ? (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {groups.map((group) => (
+          {groupsWithDetails.map((group) => (
             <GroupCard key={group.id} group={group} />
           ))}
         </div>
@@ -190,7 +214,17 @@ export default function GroupsPage() {
               <X className="h-5 w-5" />
             </button>
             <h2 className="font-heading text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Create New Group</h2>
-            <div className="space-y-4">
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (!trimmedGroupName) {
+                  toast.error('Group name is required')
+                  return
+                }
+                createGroupMut.mutate()
+              }}
+            >
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Group Name</label>
                 <input 
@@ -199,33 +233,55 @@ export default function GroupsPage() {
                   onChange={(e) => setNewGroupName(e.target.value)}
                   placeholder="e.g. Computer Science 101"
                   className="input-field w-full"
+                  maxLength={45}
+                  required
                   autoFocus
                 />
+                <p className="mt-1 text-xs" style={{ color: 'var(--color-text-faint)' }}>
+                  {trimmedGroupName.length}/45
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Level</label>
-                <select 
-                  value={newGroupLevel}
-                  onChange={(e) => setNewGroupLevel(e.target.value)}
-                  className="input-field w-full appearance-none"
-                >
-                  <option value="A1">Beginner (A1)</option>
-                  <option value="A2">Elementary (A2)</option>
-                  <option value="B1">Intermediate (B1)</option>
-                  <option value="B2">Upper Intermediate (B2)</option>
-                  <option value="C1">Advanced (C1)</option>
-                </select>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {LEVEL_OPTIONS.map((level) => {
+                    const selected = newGroupLevel === level.value
+                    return (
+                      <button
+                        key={level.value}
+                        type="button"
+                        onClick={() => setNewGroupLevel(level.value)}
+                        className={[
+                          'flex items-center justify-between rounded-xl border px-4 py-3 text-left transition',
+                          selected
+                            ? 'border-accent/70 bg-accent/15 text-white shadow-[0_0_24px_rgba(99,102,241,0.18)]'
+                            : 'border-white/10 bg-white/[0.03] text-white/70 hover:border-white/20 hover:bg-white/[0.06]',
+                        ].join(' ')}
+                      >
+                        <span className="text-sm font-medium">{level.label}</span>
+                        <span
+                          className={[
+                            'rounded-full px-2 py-0.5 text-xs font-semibold',
+                            selected ? 'bg-accent text-white' : 'bg-white/10 text-white/50',
+                          ].join(' ')}
+                        >
+                          {level.description}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
               <div className="pt-2">
                 <button 
-                  onClick={() => createGroupMut.mutate()}
-                  disabled={createGroupMut.isPending || !newGroupName.trim()}
+                  type="submit"
+                  disabled={createGroupMut.isPending || !trimmedGroupName}
                   className="btn-primary w-full justify-center"
                 >
                   {createGroupMut.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Create Group'}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}

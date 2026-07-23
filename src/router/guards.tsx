@@ -11,8 +11,8 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { getGroups } from '@/modules/groups/api'
+import { useQueries, useQuery } from '@tanstack/react-query'
+import { getGroupDetail, getGroups } from '@/modules/groups/api'
 
 export function RootRedirect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -58,11 +58,19 @@ export function DashboardPage() {
   })
 
   const groups = paginatedGroups?.results ?? []
+  const groupDetailQueries = useQueries({
+    queries: groups.map((group) => ({
+      queryKey: ['group', group.id],
+      queryFn: () => getGroupDetail(group.id),
+      enabled: Boolean(group.id),
+    })),
+  })
+  const groupsWithDetails = groups.map((group, index) => groupDetailQueries[index]?.data ?? group)
 
-  const totalGroups = groups.length
-  const totalTests = groups.reduce((a, g) => a + (Number(g.tests_count) || 0), 0)
-  const totalMaterials = groups.reduce((a, g) => a + (Number(g.materials_count) || 0), 0)
-  const totalStudents = groups.reduce((a, g) => a + (Number(g.students_count) || 0), 0)
+  const totalGroups = groupsWithDetails.length
+  const totalTests = groupsWithDetails.reduce((a, g) => a + (Number(g.tests_count) || 0), 0)
+  const totalMaterials = groupsWithDetails.reduce((a, g) => a + (Number(g.materials_count) || 0), 0)
+  const totalStudents = groupsWithDetails.reduce((a, g) => a + (Number(g.students_count) || 0), 0)
 
   const quickStats = [
     {

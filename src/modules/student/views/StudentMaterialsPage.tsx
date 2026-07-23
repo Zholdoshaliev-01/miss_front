@@ -3,16 +3,25 @@ import { BookOpen, Download, FileText, Loader2, Search } from 'lucide-react'
 import { useState } from 'react'
 import { getStudentGroups, getStudentMaterials } from '@/modules/student/api'
 import type { Material } from '@/modules/materials/types'
-import type { Group } from '@/modules/groups/types'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
-function formatDate(dateStr: string) {
+function formatDate(dateStr?: string) {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return ''
   return new Date(dateStr).toLocaleDateString([], {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   })
+}
+
+function normalizeStudentGroup(raw: any) {
+  return {
+    id: raw.group_id ?? raw.id,
+    group_name: raw.group_name ?? raw.name ?? 'Untitled group',
+  }
 }
 
 function getFileExtension(url: string) {
@@ -43,9 +52,10 @@ export default function StudentMaterialsPage() {
     queryFn: () => getStudentGroups(),
   })
   
-  const groups: Group[] = Array.isArray(rawGroupsData) 
+  const groups = (Array.isArray(rawGroupsData) 
     ? rawGroupsData 
     : (rawGroupsData as any)?.results ?? []
+  ).map(normalizeStudentGroup)
 
   // Auto-select first group if none selected
   const activeGroupId = selectedGroupId ?? groups[0]?.id ?? null
@@ -150,7 +160,7 @@ export default function StudentMaterialsPage() {
             const ext = getFileExtension(material.file || '')
             const fileUrl = material.file 
               ? (material.file.startsWith('http') ? material.file : `${BASE_URL}${material.file}`)
-              : '#'
+              : null
 
             return (
               <div
@@ -185,15 +195,21 @@ export default function StudentMaterialsPage() {
 
                 {/* Actions */}
                 <div className="flex items-center justify-end gap-2 px-5 pb-4 pt-2">
-                  <a
-                    href={fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-primary !py-1.5 !px-4 !text-xs !rounded-lg inline-flex items-center gap-1.5"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Download
-                  </a>
+                  {fileUrl ? (
+                    <a
+                      href={fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-primary !py-1.5 !px-4 !text-xs !rounded-lg inline-flex items-center gap-1.5"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download
+                    </a>
+                  ) : (
+                    <span className="rounded-lg px-3 py-1.5 text-xs" style={{ background: 'var(--input-bg)', color: 'var(--color-text-faint)' }}>
+                      No file
+                    </span>
+                  )}
                 </div>
               </div>
             )

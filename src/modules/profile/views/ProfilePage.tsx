@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/modules/auth/store/authStore'
 import { requestPasswordReset } from '@/modules/auth/api'
 import { getProfile, updateProfile } from '@/modules/profile/api'
-import { getGroups } from '@/modules/groups/api'
+import { getGroupDetail, getGroups } from '@/modules/groups/api'
 import type { UserProfile } from '@/modules/profile/types'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import {
@@ -90,10 +90,18 @@ export default function ProfilePage() {
   })
 
   const groups = paginatedGroups?.results ?? []
-  const totalGroups = groups.length
-  const totalTests = groups.reduce((a, g) => a + (Number(g.tests_count) || 0), 0)
-  const totalMaterials = groups.reduce((a, g) => a + (Number(g.materials_count) || 0), 0)
-  const totalStudents = groups.reduce((a, g) => a + (Number(g.students_count) || 0), 0)
+  const groupDetailQueries = useQueries({
+    queries: groups.map((group) => ({
+      queryKey: ['group', group.id],
+      queryFn: () => getGroupDetail(group.id),
+      enabled: Boolean(group.id),
+    })),
+  })
+  const groupsWithDetails = groups.map((group, index) => groupDetailQueries[index]?.data ?? group)
+  const totalGroups = groupsWithDetails.length
+  const totalTests = groupsWithDetails.reduce((a, g) => a + (Number(g.tests_count) || 0), 0)
+  const totalMaterials = groupsWithDetails.reduce((a, g) => a + (Number(g.materials_count) || 0), 0)
+  const totalStudents = groupsWithDetails.reduce((a, g) => a + (Number(g.students_count) || 0), 0)
 
   const displayUser = profile ?? authUser
 

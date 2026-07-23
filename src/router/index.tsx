@@ -16,6 +16,9 @@ import PendingPage from '@/modules/student/views/PendingPage'
 import StudentDashboard from '@/modules/student/views/StudentDashboard'
 import StudentMaterialsPage from '@/modules/student/views/StudentMaterialsPage'
 import StudentGroupsPage from '@/modules/student/views/StudentGroupsPage'
+import StudentGroupDetailPage from '@/modules/student/views/StudentGroupDetailPage'
+import StudentHomeworksPage from '@/modules/student/views/StudentHomeworksPage'
+import StudentTestsPage from '@/modules/student/views/StudentTestsPage'
 import TestPage from '@/modules/student/views/TestPage'
 import StudentDetailPage from '@/modules/students/views/StudentDetailPage'
 import TestBuilderPage from '@/modules/tests/views/TestBuilderPage'
@@ -47,6 +50,7 @@ export const router = createBrowserRouter([
       { path: 'reset-password/:uid/:token', element: <ResetPasswordPage /> },
       { path: 'join', element: <JoinLandingView /> },
       { path: 'join/:inviteCode', element: <JoinPage /> },
+      { path: 'join/*', element: <JoinPage /> },
       { path: 'pending', element: <PendingPage /> },
     ],
   },
@@ -81,7 +85,10 @@ export const router = createBrowserRouter([
         children: [
           { path: 'student/dashboard', element: <StudentDashboard /> },
           { path: 'student/groups', element: <StudentGroupsPage /> },
+          { path: 'student/groups/:groupId', element: <StudentGroupDetailPage /> },
           { path: 'student/materials', element: <StudentMaterialsPage /> },
+          { path: 'student/homeworks', element: <StudentHomeworksPage /> },
+          { path: 'student/tests', element: <StudentTestsPage /> },
           { path: 'student/homework/:id', element: <HomeworkSubmitPage /> },
           { path: 'student/test/:id', element: <TestPage /> },
           { path: 'student/chat', element: <ChatPage /> },
