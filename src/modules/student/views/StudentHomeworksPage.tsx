@@ -1,13 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { BookOpen, CalendarDays, FileText, Loader2, Search, Upload } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getStudentGroups, getStudentHomeworks } from '@/modules/student/api'
+import { useCommonCopy } from '@/shared/i18n'
 
-function formatDate(dateStr?: string) {
-  if (!dateStr) return 'No deadline'
+function formatDate(dateStr: string | undefined, fallback: string) {
+  if (!dateStr) return fallback
   const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'No deadline'
+  if (Number.isNaN(date.getTime())) return fallback
   return date.toLocaleDateString([], {
     year: 'numeric',
     month: 'short',
@@ -22,7 +23,12 @@ function normalizeStudentGroup(raw: any) {
   }
 }
 
+function unpackResults(data: any) {
+  return Array.isArray(data) ? data : data?.results ?? []
+}
+
 export default function StudentHomeworksPage() {
+  const { t } = useCommonCopy()
   const searchParams = new URLSearchParams(window.location.search)
   const initialGroupId = searchParams.get('group') ? Number(searchParams.get('group')) : null
 
@@ -39,7 +45,7 @@ export default function StudentHomeworksPage() {
     : (rawGroupsData as any)?.results ?? []
   ).map(normalizeStudentGroup)
 
-  const activeGroupId = selectedGroupId ?? groups[0]?.id ?? null
+  const activeGroupId = selectedGroupId
 
   const { data: rawHomeworksData, isLoading: homeworksLoading } = useQuery({
     queryKey: ['student-homeworks', activeGroupId],
@@ -47,16 +53,24 @@ export default function StudentHomeworksPage() {
     enabled: !!activeGroupId,
   })
 
-  const homeworks = Array.isArray(rawHomeworksData)
-    ? rawHomeworksData
-    : (rawHomeworksData as any)?.results ?? []
+  const allGroupHomeworkQueries = useQueries({
+    queries: groups.map((group: any) => ({
+      queryKey: ['student-homeworks', group.id],
+      queryFn: () => getStudentHomeworks(group.id),
+      enabled: !activeGroupId && groups.length > 0,
+    })),
+  })
+
+  const homeworks = activeGroupId
+    ? unpackResults(rawHomeworksData)
+    : allGroupHomeworkQueries.flatMap((query) => unpackResults(query.data))
 
   const filtered = homeworks.filter((homework: any) =>
     homework.title.toLowerCase().includes(search.toLowerCase())
     || homework.description?.toLowerCase().includes(search.toLowerCase()),
   )
 
-  const isLoading = groupsLoading || homeworksLoading
+  const isLoading = groupsLoading || (activeGroupId ? homeworksLoading : allGroupHomeworkQueries.some((query) => query.isLoading))
 
   return (
     <div className="space-y-6">
@@ -66,9 +80,9 @@ export default function StudentHomeworksPage() {
             <FileText className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="font-heading text-xl font-bold" style={{ color: 'var(--color-text)' }}>Homework</h1>
+            <h1 className="font-heading text-xl font-bold" style={{ color: 'var(--color-text)' }}>{t.homework}</h1>
             <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              {filtered.length} {filtered.length === 1 ? 'task' : 'tasks'} assigned
+              {filtered.length} {filtered.length === 1 ? t.task : t.tasks.toLowerCase()} {t.assigned}
             </p>
           </div>
         </div>
@@ -76,10 +90,11 @@ export default function StudentHomeworksPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           {groups.length > 1 && (
             <select
-              value={activeGroupId ?? ''}
-              onChange={(e) => setSelectedGroupId(Number(e.target.value))}
+              value={activeGroupId ?? 'all'}
+              onChange={(e) => setSelectedGroupId(e.target.value === 'all' ? null : Number(e.target.value))}
               className="input-field !py-2 !text-sm !rounded-xl"
             >
+              <option value="all">{t.allGroups}</option>
               {groups.map((group: any) => (
                 <option key={group.id} value={group.id}>{group.group_name}</option>
               ))}
@@ -90,7 +105,7 @@ export default function StudentHomeworksPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-text-faint)' }} />
             <input
               type="text"
-              placeholder="Search homework..."
+              placeholder={t.searchHomework}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="input-field input-with-icon !py-2 !text-sm !rounded-xl"
@@ -106,16 +121,16 @@ export default function StudentHomeworksPage() {
       ) : groups.length === 0 ? (
         <div className="glass-card flex flex-col items-center justify-center py-16 text-center">
           <BookOpen className="h-10 w-10 text-white/15" />
-          <p className="mt-4 font-heading text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>No groups yet</p>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-faint)' }}>Join a group to see homework.</p>
+          <p className="mt-4 font-heading text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>{t.noGroupsYet}</p>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-faint)' }}>{t.joinGroupHomework}</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="glass-card flex flex-col items-center justify-center py-16 text-center">
           <FileText className="h-10 w-10 text-white/15" />
           <p className="mt-4 font-heading text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            {search ? 'No homework matches your search' : 'No homework yet'}
+            {search ? t.noHomeworkMatch : t.noHomeworkYet}
           </p>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-faint)' }}>Your teacher has not assigned homework for this group.</p>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-faint)' }}>{t.teacherNoHomework}</p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -129,7 +144,7 @@ export default function StudentHomeworksPage() {
                   <h3 className="truncate font-heading text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{homework.title}</h3>
                   <p className="mt-1 inline-flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-text-faint)' }}>
                     <CalendarDays className="h-3.5 w-3.5" />
-                    Due {formatDate(homework.due_date)}
+                    {t.due} {formatDate(homework.due_date, t.noDeadline)}
                   </p>
                 </div>
               </div>
@@ -140,11 +155,14 @@ export default function StudentHomeworksPage() {
 
               <div className="mt-5 flex items-center justify-between gap-2">
                 <span className="rounded-full px-2.5 py-1 text-xs" style={{ background: 'var(--input-bg)', color: 'var(--color-text-muted)' }}>
-                  {homework.is_submitted ? 'Submitted' : 'Not submitted'}
+                  {homework.is_submitted ? t.submitted : t.notSubmitted}
                 </span>
-                <Link to={`/student/homework/${homework.id}`} className="btn-primary !py-1.5 !px-4 !text-xs !rounded-lg">
+                <Link
+                  to={`/student/homework/${homework.id}`}
+                  className={`${homework.is_submitted ? 'btn-secondary' : 'btn-primary'} !py-1.5 !px-4 !text-xs !rounded-lg`}
+                >
                   <Upload className="h-3.5 w-3.5" />
-                  Submit
+                  {homework.is_submitted ? t.updateSubmission : t.submit}
                 </Link>
               </div>
             </div>

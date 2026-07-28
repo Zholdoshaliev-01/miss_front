@@ -54,12 +54,12 @@ export async function getHomeworkAnswers(homeworkId: number, params?: Record<str
 
 /* ─── Teacher: Reviews ─── */
 
-export async function createReview(homeworkId: number, payload: { text?: string; rating?: number }) {
+export async function createReview(homeworkId: number, payload: { user?: number; text?: string; rating?: number }) {
   const { data } = await api.post<Review>(`/homeworks/${homeworkId}/reviews/`, payload)
   return data
 }
 
-export async function updateReview(reviewId: number, payload: Partial<{ text: string; rating: number }>) {
+export async function updateReview(reviewId: number, payload: Partial<{ user: number; text: string; rating: number }>) {
   const { data } = await api.patch<Review>(`/reviews/${reviewId}/`, payload)
   return data
 }

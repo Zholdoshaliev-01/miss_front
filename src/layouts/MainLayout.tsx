@@ -15,19 +15,21 @@ import { toast } from 'sonner'
 import { useState } from 'react'
 import { logoutRequest } from '@/modules/auth/api'
 import { useAuthStore } from '@/modules/auth/store/authStore'
+import { academyConfig } from '@/core/config/academy'
 
 import { cn } from '@/shared/utils/cn'
+import { useCommonCopy } from '@/shared/i18n'
 
 const nav = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/groups', label: 'Groups', icon: GraduationCap },
-  { to: '/chat', label: 'Chat', icon: MessageSquare },
-  { to: '/ratings', label: 'Student Rating', icon: Trophy },
-  { to: '/profile', label: 'Profile', icon: UserRound },
-  { to: '/settings', label: 'Settings', icon: Settings },
-]
+  { to: '/dashboard', labelKey: 'dashboard', icon: LayoutDashboard },
+  { to: '/groups', labelKey: 'groups', icon: GraduationCap },
+  { to: '/chat', labelKey: 'chat', icon: MessageSquare },
+  { to: '/ratings', labelKey: 'studentRating', icon: Trophy },
+  { to: '/profile', labelKey: 'profile', icon: UserRound },
+  { to: '/settings', labelKey: 'settings', icon: Settings },
+] as const
 
-function NavItem({ to, label, icon: Icon, collapsed }: (typeof nav)[number] & { collapsed?: boolean }) {
+function NavItem({ to, label, icon: Icon, collapsed }: { to: string; label: string; icon: (typeof nav)[number]['icon']; collapsed?: boolean }) {
   return (
     <NavLink
       to={to}
@@ -61,6 +63,7 @@ function NavItem({ to, label, icon: Icon, collapsed }: (typeof nav)[number] & { 
 
 export function MainLayout() {
   const navigate = useNavigate()
+  const { t } = useCommonCopy()
   const refreshToken = useAuthStore((s) => s.refreshToken)
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const user = useAuthStore((s) => s.user)
@@ -106,8 +109,8 @@ export function MainLayout() {
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-accent-dark shadow-lg shadow-accent/20">
                 <GraduationCap className="h-5 w-5 text-white" />
               </div>
-              <span className="font-heading text-lg font-bold tracking-tight" style={{ color: 'var(--color-text)' }}>
-                Edu<span className="text-accent-light">Flow</span>
+              <span className="truncate font-heading text-lg font-bold tracking-tight" style={{ color: 'var(--color-text)' }}>
+                {academyConfig.academyName}
               </span>
             </div>
           )}
@@ -139,7 +142,7 @@ export function MainLayout() {
         {/* Navigation */}
         <nav className="flex flex-1 flex-col gap-1 p-3">
           {nav.map((item) => (
-            <NavItem key={item.to} {...item} collapsed={collapsed} />
+            <NavItem key={item.to} to={item.to} icon={item.icon} label={t[item.labelKey]} collapsed={collapsed} />
           ))}
         </nav>
 
@@ -158,7 +161,7 @@ export function MainLayout() {
         className="fixed bottom-0 left-0 right-0 z-40 flex px-2 py-2 backdrop-blur-xl md:hidden"
         style={{ background: 'var(--color-bg-alt)', borderTop: '1px solid var(--border-color)' }}
       >
-        {nav.map(({ to, label, icon: Icon }) => (
+        {nav.map(({ to, labelKey, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -170,7 +173,7 @@ export function MainLayout() {
             {({ isActive }) => (
               <>
                 <Icon className="h-5 w-5" aria-hidden />
-                {label}
+                {t[labelKey]}
                 {isActive && (
                   <div className="absolute bottom-1 h-1 w-1 rounded-full bg-accent shadow-[0_0_6px_rgba(99,102,241,0.6)]" />
                 )}

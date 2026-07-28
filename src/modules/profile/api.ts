@@ -6,7 +6,7 @@ export async function getProfile() {
   return data
 }
 
-export async function updateProfile(payload: Partial<UserProfile>) {
+export async function updateProfile(payload: Partial<UserProfile> | FormData) {
   const { data } = await api.patch<UserProfile>('/users/me/', payload)
   return data
 }

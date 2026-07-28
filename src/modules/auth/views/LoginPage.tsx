@@ -6,6 +6,7 @@ import { LoginForm } from '../components/LoginForm'
 import { useAuthStore } from '../store/authStore'
 import type { LoginPayload } from '../types'
 import { getProfile } from '@/modules/profile/api'
+import { academyConfig } from '@/core/config/academy'
 import axios from 'axios'
 
 function getErrorMessage(err: unknown): string {
@@ -60,7 +61,7 @@ export default function LoginPage() {
           Welcome back
         </h1>
         <p className="mt-2 text-sm text-white/40">
-          Sign in to your EduFlow workspace
+          Sign in to {academyConfig.academyName}
         </p>
       </div>
 

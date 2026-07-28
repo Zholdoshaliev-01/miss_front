@@ -5,6 +5,7 @@ import { ArrowLeft, CalendarDays, Download, FileText, Loader2, Upload } from 'lu
 import { toast } from 'sonner'
 import { getStudentGroups, getStudentHomeworks, submitHomeworkAnswer } from '@/modules/student/api'
 import { FileUploadZone } from '@/shared/ui/FileUploadZone'
+import { useCommonCopy } from '@/shared/i18n'
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024
 const ALLOWED_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'doc', 'docx']
@@ -17,9 +18,9 @@ function buildFileUrl(file?: string | null) {
 }
 
 function getFileName(file?: string | null) {
-  if (!file) return 'assignment file'
+  if (!file) return ''
   const clean = file.split('?')[0]
-  return decodeURIComponent(clean.split('/').pop() || 'assignment file')
+  return decodeURIComponent(clean.split('/').pop() || '')
 }
 
 function getFileExtension(file?: string | null) {
@@ -27,10 +28,10 @@ function getFileExtension(file?: string | null) {
   return file.split('?')[0].split('.').pop()?.toLowerCase() || ''
 }
 
-function formatDate(dateStr?: string | null) {
-  if (!dateStr) return 'No deadline'
+function formatDate(dateStr: string | null | undefined, fallback: string) {
+  if (!dateStr) return fallback
   const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'No deadline'
+  if (Number.isNaN(date.getTime())) return fallback
   return date.toLocaleDateString([], {
     year: 'numeric',
     month: 'short',
@@ -45,30 +46,31 @@ function normalizeStudentGroup(raw: any) {
   }
 }
 
-function validateFile(file: File | null) {
+function validateFile(file: File | null, messages: { fileTooLarge: string; allowedFormats: string }) {
   if (!file) return null
-  if (file.size > MAX_FILE_SIZE) return 'File must be 100 MB or smaller'
+  if (file.size > MAX_FILE_SIZE) return messages.fileTooLarge
 
   const extension = file.name.split('.').pop()?.toLowerCase()
   if (!extension || !ALLOWED_EXTENSIONS.includes(extension)) {
-    return 'Allowed formats: PDF, JPG, PNG, WEBP, GIF, DOC, DOCX'
+    return messages.allowedFormats
   }
 
   return null
 }
 
-function getErrorMessage(err: any) {
+function getErrorMessage(err: any, fallback: string) {
   const data = err.response?.data
   return (
     data?.detail ||
     data?.file?.[0] ||
     data?.comment?.[0] ||
     err.message ||
-    'Failed to submit homework'
+    fallback
   )
 }
 
 export default function HomeworkSubmitPage() {
+  const { t } = useCommonCopy()
   const { id } = useParams()
   const homeworkId = Number(id)
   const navigate = useNavigate()
@@ -121,11 +123,11 @@ export default function HomeworkSubmitPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['student-homeworks'] })
-      toast.success('Homework submitted successfully!')
+      toast.success(t.homeworkSubmitted)
       navigate(backTo, { replace: true })
     },
     onError: (err) => {
-      toast.error(getErrorMessage(err))
+      toast.error(getErrorMessage(err, t.homeworkSubmitFailed))
     },
   })
 
@@ -133,8 +135,8 @@ export default function HomeworkSubmitPage() {
     return (
       <div className="glass-card mx-auto flex max-w-3xl flex-col items-center justify-center py-20 text-center">
         <FileText className="h-10 w-10 text-white/15" />
-        <h1 className="mt-4 font-heading text-xl font-bold text-white">Homework link is invalid</h1>
-        <Link to="/student/homeworks" className="btn-primary mt-6 !py-2.5">Back to Homework</Link>
+        <h1 className="mt-4 font-heading text-xl font-bold text-white">{t.homeworkInvalid}</h1>
+        <Link to="/student/homeworks" className="btn-primary mt-6 !py-2.5">{t.backToHomework}</Link>
       </div>
     )
   }
@@ -151,11 +153,11 @@ export default function HomeworkSubmitPage() {
     return (
       <div className="glass-card mx-auto flex max-w-3xl flex-col items-center justify-center py-20 text-center">
         <FileText className="h-10 w-10 text-white/15" />
-        <h1 className="mt-4 font-heading text-xl font-bold text-white">Homework not found</h1>
+        <h1 className="mt-4 font-heading text-xl font-bold text-white">{t.homeworkNotFound}</h1>
         <p className="mt-2 max-w-sm text-sm text-white/35">
-          This task is not available in your active groups.
+          {t.taskNotAvailable}
         </p>
-        <Link to="/student/homeworks" className="btn-primary mt-6 !py-2.5">Back to Homework</Link>
+        <Link to="/student/homeworks" className="btn-primary mt-6 !py-2.5">{t.backToHomework}</Link>
       </div>
     )
   }
@@ -164,7 +166,7 @@ export default function HomeworkSubmitPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <Link to={backTo} className="inline-flex items-center gap-1.5 text-sm text-white/40 transition hover:text-white/70">
         <ArrowLeft className="h-4 w-4" />
-        Back to Homework
+        {t.backToHomework}
       </Link>
 
       <div className="glass-card p-6">
@@ -174,19 +176,19 @@ export default function HomeworkSubmitPage() {
           </div>
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-amber-300/70">
-              Teacher Task
+              {t.teacherTask}
             </p>
             <h1 className="font-heading text-2xl font-bold tracking-tight text-white">
-              Assignment: {homework.title}
+              {t.assignment}: {homework.title}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-white/40">
               <span>{homework.groupName}</span>
               <span className="inline-flex items-center gap-1.5">
                 <CalendarDays className="h-3.5 w-3.5" />
-                Due {formatDate(homework.due_date)}
+                {t.due} {formatDate(homework.due_date, t.noDeadline)}
               </span>
               <span className={homework.is_submitted ? 'text-emerald-300/80' : 'text-amber-300/80'}>
-                {homework.is_submitted ? 'Already submitted' : 'Not submitted yet'}
+                {homework.is_submitted ? t.submitted : t.notSubmitted}
               </span>
             </div>
           </div>
@@ -200,23 +202,23 @@ export default function HomeworkSubmitPage() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wider text-amber-300/70">
-              What You Need To Do
+              {t.whatYouNeedToDo}
             </p>
             <h2 className="mt-1 font-heading text-lg font-semibold text-white">
               {homework.title}
             </h2>
             <div className="mt-4 rounded-xl border border-amber-300/15 bg-amber-300/[0.04] p-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-white/35">
-                Teacher instructions
+                {t.teacherInstructions}
               </p>
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/65">
-                {homework.description || 'The teacher did not add text instructions. Check the attached file or ask your teacher.'}
+                {homework.description || t.noTextInstructions}
               </p>
             </div>
             {homeworkFileUrl && (
               <div className="mt-4">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-white/35">
-                  Attached file
+                  {t.attachedFile}
                 </p>
                 {isHomeworkImage ? (
                   <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-black/20">
@@ -230,12 +232,12 @@ export default function HomeworkSubmitPage() {
                     </a>
                     <div className="flex flex-col gap-3 border-t border-white/[0.06] p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-white/70">{homeworkFileName}</p>
-                        <p className="text-xs text-white/35">Image preview</p>
+                        <p className="truncate text-sm font-medium text-white/70">{homeworkFileName || t.attachedFile}</p>
+                        <p className="text-xs text-white/35">{t.imagePreview}</p>
                       </div>
                       <a href={homeworkFileUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary shrink-0 text-sm">
                         <Download className="h-4 w-4" />
-                        Download image
+                        {t.downloadImage}
                       </a>
                     </div>
                   </div>
@@ -246,13 +248,13 @@ export default function HomeworkSubmitPage() {
                         <FileText className="h-5 w-5 text-white/55" />
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-white/70">{homeworkFileName}</p>
-                        <p className="text-xs text-white/35">{homeworkFileExtension.toUpperCase() || 'FILE'} attachment</p>
+                        <p className="truncate text-sm font-medium text-white/70">{homeworkFileName || t.attachedFile}</p>
+                        <p className="text-xs text-white/35">{homeworkFileExtension.toUpperCase() || 'FILE'} · {t.fileAttachment}</p>
                       </div>
                     </div>
                     <a href={homeworkFileUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary shrink-0 text-sm">
                       <Download className="h-4 w-4" />
-                      Download file
+                      {t.downloadFile}
                     </a>
                   </div>
                 )}
@@ -266,7 +268,7 @@ export default function HomeworkSubmitPage() {
         className="glass-card p-6"
         onSubmit={(event) => {
           event.preventDefault()
-          const validationError = validateFile(file)
+          const validationError = validateFile(file, t)
           setFileError(validationError)
           if (validationError) return
           mutation.mutate()
@@ -274,37 +276,37 @@ export default function HomeworkSubmitPage() {
       >
         <div className="mb-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-accent-light/70">
-            Your Submission
+            {t.yourSubmission}
           </p>
           <h2 className="mt-1 font-heading text-lg font-semibold text-white">
-            Upload your answer
+            {t.uploadYourAnswer}
           </h2>
           <p className="mt-1 text-sm text-white/35">
-            Attach your completed work here. This file is what your teacher will review.
+            {t.attachCompletedWork}
           </p>
         </div>
 
-        <label className="mb-1.5 block text-sm font-medium text-white/65">Your answer file</label>
+        <label className="mb-1.5 block text-sm font-medium text-white/65">{t.yourAnswerFile}</label>
         <FileUploadZone
           value={file}
           onChange={(nextFile) => {
             setFile(nextFile)
-            setFileError(validateFile(nextFile))
+            setFileError(validateFile(nextFile, t))
           }}
           disabled={mutation.isPending}
           accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx"
-          label="Drop your file here"
-          hint="PDF, JPG, PNG, WEBP, GIF, DOC, or DOCX. Max 100 MB"
+          label={t.dropYourFile}
+          hint={t.uploadHint}
         />
         {fileError && <p className="mt-2 text-xs text-red-400">{fileError}</p>}
 
         <div className="mt-6">
-          <label className="mb-1.5 block text-sm font-medium text-white/65">Your comment (optional)</label>
+          <label className="mb-1.5 block text-sm font-medium text-white/65">{t.yourCommentOptional}</label>
           <textarea
             className="input-field min-h-[100px] resize-y"
             value={comment}
             onChange={(event) => setComment(event.target.value)}
-            placeholder="Example: I completed the exercises and attached my PDF."
+            placeholder={t.commentPlaceholder}
             disabled={mutation.isPending}
           />
         </div>
@@ -313,12 +315,12 @@ export default function HomeworkSubmitPage() {
           {mutation.isPending ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Submitting...
+              {t.submitting}
             </>
           ) : (
             <>
               <Upload className="h-4 w-4" />
-              {homework.is_submitted ? 'Update Submission' : 'Submit Homework'}
+              {homework.is_submitted ? t.updateSubmission : t.submitHomework}
             </>
           )}
         </button>

@@ -18,21 +18,23 @@ import { toast } from 'sonner'
 import { useState } from 'react'
 import { logoutRequest } from '@/modules/auth/api'
 import { useAuthStore } from '@/modules/auth/store/authStore'
+import { academyConfig } from '@/core/config/academy'
 
 import { cn } from '@/shared/utils/cn'
+import { useCommonCopy } from '@/shared/i18n'
 
 const studentNav = [
-  { to: '/student/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/student/groups', label: 'My Groups', icon: Users },
-  { to: '/student/materials', label: 'Materials', icon: BookOpen },
-  { to: '/student/homeworks', label: 'Homework', icon: FileText },
-  { to: '/student/tests', label: 'Tests', icon: ClipboardCheck },
-  { to: '/student/chat', label: 'Chat', icon: MessageSquare },
-  { to: '/student/profile', label: 'Profile', icon: UserRound },
-  { to: '/student/settings', label: 'Settings', icon: Settings },
-]
+  { to: '/student/dashboard', labelKey: 'dashboard', icon: LayoutDashboard },
+  { to: '/student/groups', labelKey: 'myGroups', icon: Users },
+  { to: '/student/materials', labelKey: 'materials', icon: BookOpen },
+  { to: '/student/homeworks', labelKey: 'homework', icon: FileText },
+  { to: '/student/tests', labelKey: 'tests', icon: ClipboardCheck },
+  { to: '/student/chat', labelKey: 'chat', icon: MessageSquare },
+  { to: '/student/profile', labelKey: 'profile', icon: UserRound },
+  { to: '/student/settings', labelKey: 'settings', icon: Settings },
+] as const
 
-function NavItem({ to, label, icon: Icon, collapsed }: (typeof studentNav)[number] & { collapsed?: boolean }) {
+function NavItem({ to, label, icon: Icon, collapsed }: { to: string; label: string; icon: (typeof studentNav)[number]['icon']; collapsed?: boolean }) {
   return (
     <NavLink
       to={to}
@@ -66,6 +68,7 @@ function NavItem({ to, label, icon: Icon, collapsed }: (typeof studentNav)[numbe
 
 export function StudentLayout() {
   const navigate = useNavigate()
+  const { t } = useCommonCopy()
   const refreshToken = useAuthStore((s) => s.refreshToken)
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const user = useAuthStore((s) => s.user)
@@ -111,8 +114,8 @@ export function StudentLayout() {
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-accent-dark shadow-lg shadow-accent/20">
                 <GraduationCap className="h-5 w-5 text-white" />
               </div>
-              <span className="font-heading text-lg font-bold tracking-tight" style={{ color: 'var(--color-text)' }}>
-                Edu<span className="text-accent-light">Flow</span>
+              <span className="truncate font-heading text-lg font-bold tracking-tight" style={{ color: 'var(--color-text)' }}>
+                {academyConfig.academyName}
               </span>
             </div>
           )}
@@ -144,7 +147,7 @@ export function StudentLayout() {
         {/* Navigation */}
         <nav className="flex flex-1 flex-col gap-1 p-3">
           {studentNav.map((item) => (
-            <NavItem key={item.to} {...item} collapsed={collapsed} />
+            <NavItem key={item.to} to={item.to} icon={item.icon} label={t[item.labelKey]} collapsed={collapsed} />
           ))}
         </nav>
 
@@ -163,7 +166,7 @@ export function StudentLayout() {
         className="fixed bottom-0 left-0 right-0 z-40 flex px-2 py-2 backdrop-blur-xl md:hidden"
         style={{ background: 'var(--color-bg-alt)', borderTop: '1px solid var(--border-color)' }}
       >
-        {studentNav.map(({ to, label, icon: Icon }) => (
+        {studentNav.map(({ to, labelKey, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -175,7 +178,7 @@ export function StudentLayout() {
             {({ isActive }) => (
               <>
                 <Icon className="h-5 w-5" aria-hidden />
-                {label}
+                {t[labelKey]}
                 {isActive && (
                   <div className="absolute bottom-1 h-1 w-1 rounded-full bg-accent shadow-[0_0_6px_rgba(99,102,241,0.6)]" />
                 )}

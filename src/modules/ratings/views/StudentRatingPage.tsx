@@ -6,6 +6,7 @@ import type { LeaderboardEntry } from '@/modules/groups/api'
 import { getStudentGlobalLeaderboard, getStudentGroupLeaderboard, getStudentGroups } from '@/modules/student/api'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { useAuthStore } from '@/modules/auth/store/authStore'
+import { useCommonCopy } from '@/shared/i18n'
 
 function getRankBadge(index: number) {
   if (index === 0)
@@ -36,6 +37,7 @@ function getRankBadge(index: number) {
 }
 
 export default function StudentRatingPage() {
+  const { t } = useCommonCopy()
   const user = useAuthStore((state) => state.user)
   const isStudent = user?.role === 'student'
   const [selectedGroupId, setSelectedGroupId] = useState<number | 'all'>('all')
@@ -82,11 +84,11 @@ export default function StudentRatingPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title={isStudent ? 'My Rating' : 'Student Rating'}
+        title={isStudent ? t.myRating : t.ratingTitle}
         description={
           isStudent
-            ? 'Compare your progress with every student studying with your teacher.'
-            : 'Track student performance across groups with leaderboard rankings.'
+            ? t.ratingStudentDescription
+            : t.ratingTeacherDescription
         }
       />
 
@@ -100,8 +102,8 @@ export default function StudentRatingPage() {
               selectedGroupId === 'all' ? 'border-accent/40 bg-accent/[0.07]' : '',
             ].join(' ')}
           >
-            <div className="font-heading text-base font-semibold text-white">Teacher Rating</div>
-            <p className="mt-1 text-sm text-white/40">All students who study with the same teacher, across every group.</p>
+            <div className="font-heading text-base font-semibold text-white">{t.teacherRating}</div>
+            <p className="mt-1 text-sm text-white/40">{t.teacherRatingDescription}</p>
           </button>
           <button
             type="button"
@@ -112,8 +114,8 @@ export default function StudentRatingPage() {
             ].join(' ')}
             disabled={groups.length === 0}
           >
-            <div className="font-heading text-base font-semibold text-white">Group Rating</div>
-            <p className="mt-1 text-sm text-white/40">Only students from one selected group.</p>
+            <div className="font-heading text-base font-semibold text-white">{t.groupRating}</div>
+            <p className="mt-1 text-sm text-white/40">{t.groupRatingDescription}</p>
           </button>
         </div>
       )}
@@ -124,25 +126,25 @@ export default function StudentRatingPage() {
           <div className="font-heading text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
             {entries.length}
           </div>
-          <div className="text-xs" style={{ color: 'var(--color-text-faint)' }}>Total Students</div>
+          <div className="text-xs" style={{ color: 'var(--color-text-faint)' }}>{t.totalStudents}</div>
         </div>
         <div className="glass-card p-4 text-center">
           <div className="font-heading text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
             {avgPoints}
           </div>
-          <div className="text-xs" style={{ color: 'var(--color-text-faint)' }}>Avg Rating</div>
+          <div className="text-xs" style={{ color: 'var(--color-text-faint)' }}>{t.avgRating}</div>
         </div>
         <div className="glass-card p-4 text-center">
           <div className="font-heading text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
             {entries.reduce((acc, e) => acc + e.tests_total_score, 0)}
           </div>
-          <div className="text-xs" style={{ color: 'var(--color-text-faint)' }}>Total Test Score</div>
+          <div className="text-xs" style={{ color: 'var(--color-text-faint)' }}>{t.totalTestScore}</div>
         </div>
         <div className="glass-card p-4 text-center">
           <div className="font-heading text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
             {entries.reduce((acc, e) => acc + e.homeworks_done, 0)}
           </div>
-          <div className="text-xs" style={{ color: 'var(--color-text-faint)' }}>HW Completed</div>
+          <div className="text-xs" style={{ color: 'var(--color-text-faint)' }}>{t.hwCompleted}</div>
         </div>
       </div>
 
@@ -159,7 +161,7 @@ export default function StudentRatingPage() {
                 : 'border-white/10 bg-white/[0.03] text-white/55 hover:border-white/20 hover:bg-white/[0.06] hover:text-white/75',
             ].join(' ')}
           >
-            {isStudent ? 'Teacher rating' : 'All Groups'}
+            {isStudent ? t.teacherRating : t.allGroups}
           </button>
           {groups.map((group) => {
             const selected = selectedGroupId === group.id
@@ -185,7 +187,7 @@ export default function StudentRatingPage() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-text-faint)' }} />
           <input
             type="text"
-            placeholder="Search students…"
+            placeholder={t.searchStudents}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="input-field input-with-icon w-full"
@@ -203,10 +205,10 @@ export default function StudentRatingPage() {
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Users className="mb-3 h-12 w-12" style={{ color: 'var(--color-text-faint)' }} />
             <p className="font-heading text-lg font-semibold" style={{ color: 'var(--color-text-muted)' }}>
-              No students found
+              {t.noStudentsFound}
             </p>
             <p className="mt-1 text-sm" style={{ color: 'var(--color-text-faint)' }}>
-              {search ? 'Try a different search term' : 'Students will appear here once they join groups'}
+              {search ? t.tryDifferentSearch : t.studentsAppearHere}
             </p>
           </div>
         ) : (
@@ -215,22 +217,22 @@ export default function StudentRatingPage() {
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-faint)' }}>
-                    Rank
+                    {t.rank}
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-faint)' }}>
-                    Student
+                    {t.student}
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider hidden sm:table-cell" style={{ color: 'var(--color-text-faint)' }}>
-                    Group
+                    {t.group}
                   </th>
                   <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-faint)' }}>
-                    Tests Score
+                    {t.testsScore}
                   </th>
                   <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-faint)' }}>
-                    HW Done
+                    {t.hwDone}
                   </th>
                   <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-faint)' }}>
-                    Rating
+                    {t.rating}
                   </th>
                 </tr>
               </thead>
@@ -271,7 +273,7 @@ export default function StudentRatingPage() {
                         className="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium"
                         style={{ background: 'var(--input-bg)', color: 'var(--color-text-muted)' }}
                       >
-                        {entry.group_name || `Group ${entry.group_id ?? '-'}`}
+                        {entry.group_name || `${t.group} ${entry.group_id ?? '-'}`}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">

@@ -18,6 +18,10 @@ export interface HomeworkAnswer {
   file: string
   comment: string
   submitted_at: string
+  review?: Review | null
+  rating?: number | null
+  review_text?: string | null
+  is_reviewed?: boolean
 }
 
 export interface Review {

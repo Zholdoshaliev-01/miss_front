@@ -1,5 +1,6 @@
 import { Outlet, Link } from 'react-router-dom'
 import { GraduationCap, BookOpen, Users, ClipboardCheck, BarChart3 } from 'lucide-react'
+import { academyConfig } from '@/core/config/academy'
 
 const features = [
   { icon: Users, text: 'Manage student groups' },
@@ -22,18 +23,18 @@ export function AuthLayout() {
                 <GraduationCap className="h-5 w-5 text-white" />
               </div>
               <span className="font-heading text-xl font-bold tracking-tight text-white">
-                Edu<span className="text-accent-light">Flow</span>
+                {academyConfig.academyName}
               </span>
             </Link>
 
             <div className="mt-16">
               <h2 className="font-heading text-3xl font-bold leading-tight text-white">
-                Modern LMS for
+                Welcome to
                 <br />
-                <span className="gradient-text">modern educators</span>
+                <span className="gradient-text">{academyConfig.teacherName}'s classroom</span>
               </h2>
               <p className="mt-4 text-sm leading-relaxed text-white/40">
-                Everything you need to manage your teaching workflow — from organizing groups to tracking student progress.
+                {academyConfig.shortDescription}
               </p>
             </div>
 
@@ -49,7 +50,7 @@ export function AuthLayout() {
             </div>
           </div>
 
-          <p className="text-xs text-white/20">© 2026 EduFlow. All rights reserved.</p>
+          <p className="text-xs text-white/20">{academyConfig.copyright}</p>
         </div>
 
         {/* Right panel — form */}
@@ -61,7 +62,7 @@ export function AuthLayout() {
                 <GraduationCap className="h-4 w-4 text-white" />
               </div>
               <span className="font-heading text-lg font-bold text-white">
-                Edu<span className="text-accent-light">Flow</span>
+                {academyConfig.academyName}
               </span>
             </Link>
           </div>

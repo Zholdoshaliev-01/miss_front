@@ -13,6 +13,8 @@ import {
 import { Link } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { getGroupDetail, getGroups } from '@/modules/groups/api'
+import { academyConfig } from '@/core/config/academy'
+import { useCommonCopy } from '@/shared/i18n'
 
 export function RootRedirect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -52,6 +54,7 @@ export function StudentRoute() {
 
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user)
+  const { t } = useCommonCopy()
   const { data: paginatedGroups } = useQuery({
     queryKey: ['groups'],
     queryFn: () => getGroups(),
@@ -74,7 +77,7 @@ export function DashboardPage() {
 
   const quickStats = [
     {
-      label: 'Groups',
+      label: t.groups,
       value: totalGroups,
       icon: Users,
       color: 'from-blue-500 to-cyan-400',
@@ -82,7 +85,7 @@ export function DashboardPage() {
       link: '/groups',
     },
     {
-      label: 'Tests',
+      label: t.tests,
       value: totalTests,
       icon: ClipboardCheck,
       color: 'from-violet-500 to-purple-400',
@@ -90,7 +93,7 @@ export function DashboardPage() {
       link: '/groups',
     },
     {
-      label: 'Materials',
+      label: t.materials,
       value: totalMaterials,
       icon: BookOpen,
       color: 'from-emerald-500 to-green-400',
@@ -98,12 +101,12 @@ export function DashboardPage() {
       link: '/groups',
     },
     {
-      label: 'Students',
+      label: t.students,
       value: totalStudents,
       icon: TrendingUp,
       color: 'from-amber-500 to-orange-400',
       glow: 'rgba(245,158,11,0.15)',
-      link: '/groups',
+      link: '/ratings',
     },
   ]
 
@@ -119,18 +122,20 @@ export function DashboardPage() {
             </div>
             <div>
               <h1 className="font-heading text-2xl font-bold tracking-tight md:text-3xl" style={{ color: 'var(--color-text)' }}>
-                Welcome back{user?.username ? `, ${user.username}` : ''}
+                {t.welcomeBack}{user?.username ? `, ${user.username}` : ''}
               </h1>
-              <p className="mt-0.5 text-sm" style={{ color: 'var(--color-text-muted)' }}>Here's your EduFlow overview</p>
+              <p className="mt-0.5 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                {academyConfig.academyName}: {t.classroomOverview}
+              </p>
             </div>
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link to="/groups" className="btn-primary !py-2 !px-5 text-sm">
               <Plus className="h-4 w-4" />
-              New Group
+              {totalGroups > 0 ? t.manageGroups : t.createGroup}
             </Link>
             <Link to="/profile" className="btn-secondary !py-2 !px-5 text-sm">
-              View Profile
+              {t.profile}
             </Link>
           </div>
         </div>
@@ -161,19 +166,57 @@ export function DashboardPage() {
         ))}
       </div>
 
-      {/* Recent Activity placeholder */}
-      <div className="glass-card p-6">
-        <h2 className="font-heading text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Recent Activity</h2>
-        <div className="mt-6 flex flex-col items-center justify-center py-10 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: 'var(--input-bg)', color: 'var(--color-text-faint)' }}>
-            <GraduationCap className="h-7 w-7" />
+      <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+        <div className="glass-card p-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="font-heading text-lg font-semibold" style={{ color: 'var(--color-text)' }}>
+                {t.recentActivity}
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: 'var(--color-text-faint)' }}>
+                {t.dashboardActivityDescription}
+              </p>
+            </div>
+            <Link to="/groups" className="btn-secondary !py-2 !px-4 text-sm">
+              {t.openGroups}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
-          <p className="mt-4 font-heading text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>No activity yet</p>
-          <p className="mt-1 max-w-xs text-sm" style={{ color: 'var(--color-text-faint)' }}>
-            Create your first group and start adding content to see activity here.
-          </p>
-          <Link to="/groups" className="btn-primary mt-5 !py-2 !px-5 text-sm">
-            Get Started
+
+          <div className="mt-6 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-10 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: 'var(--input-bg)', color: 'var(--color-text-faint)' }}>
+              <GraduationCap className="h-7 w-7" />
+            </div>
+            <p className="mt-4 font-heading text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              {totalGroups > 0 ? t.dashboardEmptyTitle : t.noGroupsYet}
+            </p>
+            <p className="mt-1 max-w-md text-sm" style={{ color: 'var(--color-text-faint)' }}>
+              {totalGroups > 0 ? t.dashboardEmptyDescription : t.noGroupsDescription}
+            </p>
+          </div>
+        </div>
+
+        <div className="glass-card p-6">
+          <h2 className="font-heading text-lg font-semibold" style={{ color: 'var(--color-text)' }}>
+            {t.contentOverview}
+          </h2>
+          <div className="mt-5 space-y-3">
+            {[
+              { label: t.materials, value: totalMaterials, icon: BookOpen },
+              { label: t.tests, value: totalTests, icon: ClipboardCheck },
+              { label: t.students, value: totalStudents, icon: Users },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <item.icon className="h-4 w-4" style={{ color: 'var(--color-accent-light)' }} />
+                  <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{item.label}</span>
+                </div>
+                <span className="font-heading text-sm font-bold" style={{ color: 'var(--color-text)' }}>{item.value}</span>
+              </div>
+            ))}
+          </div>
+          <Link to="/ratings" className="btn-secondary mt-5 w-full justify-center !py-2.5 text-sm">
+            {t.openRating}
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

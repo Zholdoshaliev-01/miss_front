@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { QUERY_STALE_TIME_MS } from '@/core/constants'
+import { NotificationWatcher } from '@/modules/notifications/NotificationWatcher'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,6 +23,7 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
+      <NotificationWatcher />
       {children}
       <Toaster richColors position="top-center" theme="dark" />
     </QueryClientProvider>

@@ -1,9 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, memo } from 'react'
 import { MessageSquare, Users, Hash, Search, Loader2 } from 'lucide-react'
-import { getRooms, getMessages } from '../api'
+import { getRooms, getMessages, getUsersBulk } from '../api'
 import type { RoomOut, MessageOut } from '../types'
 import { cn } from '@/shared/utils/cn'
+import { useAuthStore } from '@/modules/auth/store/authStore'
 
 interface Props {
   activeRoomId: number | null
@@ -28,6 +29,14 @@ function formatSidebarTime(dateStr: string): string {
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
   }
   return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' })
+}
+
+function isTeacherRole(role?: string) {
+  return role === 'teacher' || role === 'admin'
+}
+
+function isGenericUserName(name?: string) {
+  return !name || /^User #\d+$/i.test(name.trim())
 }
 
 /* ─── Single room row — receives data as props, no per-item fetching ─── */
@@ -70,15 +79,24 @@ const SidebarRoomItem = memo(function SidebarRoomItem({
         borderLeft: isActive ? '3px solid var(--color-accent)' : '3px solid transparent',
       }}
     >
-      <div
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-heading text-sm font-bold text-white"
-        style={{
-          background: 'linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))',
-          boxShadow: isActive ? '0 4px 12px var(--color-accent-glow)' : 'none',
-        }}
-      >
-        <Users className="h-4 w-4" />
-      </div>
+      {room.image_url ? (
+        <img
+          src={room.image_url}
+          alt={room.title || 'Chat'}
+          className="h-10 w-10 shrink-0 rounded-xl object-cover"
+          style={{ boxShadow: isActive ? '0 4px 12px var(--color-accent-glow)' : 'none' }}
+        />
+      ) : (
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-heading text-sm font-bold text-white"
+          style={{
+            background: 'linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))',
+            boxShadow: isActive ? '0 4px 12px var(--color-accent-glow)' : 'none',
+          }}
+        >
+          <Users className="h-4 w-4" />
+        </div>
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <p
@@ -125,11 +143,15 @@ const SidebarRoomItem = memo(function SidebarRoomItem({
 export default function ChatSidebar({ activeRoomId, onSelectRoom }: Props) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const accessToken = useAuthStore((s) => s.accessToken)
 
-  const { data: rooms = [], isLoading } = useQuery({
+  const { data: rooms = [], isLoading, isError, error } = useQuery({
     queryKey: ['chat-rooms'],
     queryFn: getRooms,
+    enabled: Boolean(accessToken),
+    retry: 1,
   })
+  const errorDetail = (error as any)?.response?.data?.detail || (error as any)?.message || 'Check chat backend.'
 
   /*
    * Batch-fetch last message for all rooms once, instead of N separate
@@ -160,7 +182,35 @@ export default function ChatSidebar({ activeRoomId, onSelectRoom }: Props) {
           }
         }),
       )
-      if (!cancelled) setLastMessages(results)
+
+      const userIds = [
+        ...new Set(
+          Object.values(results)
+            .map((message) => message?.sender_id ?? 0)
+            .filter((id) => id > 0),
+        ),
+      ]
+      const users = await getUsersBulk(userIds)
+      const userById = new Map(users.map((user) => [user.id, user]))
+      const namedResults = Object.fromEntries(
+        Object.entries(results).map(([groupId, message]) => {
+          if (!message) return [groupId, message]
+
+          const sender = userById.get(message.sender_id)
+          return [
+            groupId,
+            {
+              ...message,
+              sender_name: sender?.username
+                || sender?.full_name
+                || (!isGenericUserName(message.sender_name) ? message.sender_name : `User #${message.sender_id}`),
+              is_teacher: message.is_teacher || isTeacherRole(sender?.role),
+            },
+          ]
+        }),
+      ) as Record<number, MessageOut | null>
+
+      if (!cancelled) setLastMessages(namedResults)
     }
 
     fetchPreviews()
@@ -201,6 +251,16 @@ export default function ChatSidebar({ activeRoomId, onSelectRoom }: Props) {
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--color-accent)' }} />
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
+            <Hash className="mb-2 h-8 w-8" style={{ color: 'var(--color-text-faint)' }} />
+            <p className="text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              Chat is not connected
+            </p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-text-faint)' }}>
+              {errorDetail}
+            </p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQueries, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/modules/auth/store/authStore'
@@ -19,12 +19,17 @@ import {
   Mail,
   FileText,
   GraduationCap,
+  Camera,
 } from 'lucide-react'
+import { useCommonCopy } from '@/shared/i18n'
+import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
 
 export default function ProfilePage() {
+  const { t } = useCommonCopy()
   const authUser = useAuthStore((s) => s.user)
   const queryClient = useQueryClient()
   const [isEditing, setIsEditing] = useState(false)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
 
   // Fetch live profile data
   const { data: profile, isLoading: _isLoading } = useQuery({
@@ -34,6 +39,16 @@ export default function ProfilePage() {
 
   // Edit form state
   const [form, setForm] = useState<Partial<UserProfile>>({})
+  const avatarPreview = useMemo(() => {
+    if (avatarFile) return URL.createObjectURL(avatarFile)
+    const avatar = (profile as any)?.avatar || (profile as any)?.profile_image || (profile as any)?.photo || (profile as any)?.image || ''
+    return avatar ? buildMediaUrl(avatar) : ''
+  }, [avatarFile, profile])
+
+  useEffect(() => {
+    if (!avatarFile || !avatarPreview.startsWith('blob:')) return undefined
+    return () => URL.revokeObjectURL(avatarPreview)
+  }, [avatarFile, avatarPreview])
 
   function startEditing() {
     setForm({
@@ -43,15 +58,24 @@ export default function ProfilePage() {
       phone_number: profile?.phone_number ?? '',
       bio: profile?.bio ?? '',
     })
+    setAvatarFile(null)
     setIsEditing(true)
   }
 
   const updateMut = useMutation({
     mutationFn: () => {
-      const payload: Partial<UserProfile> = {
-        phone_number: form.phone_number,
-        bio: form.bio,
+      if (avatarFile) {
+        const payload = new FormData()
+        payload.append('phone_number', form.phone_number ?? '')
+        payload.append('bio', form.bio ?? '')
+        if (form.full_name?.trim()) payload.append('full_name', form.full_name)
+        payload.append('avatar', avatarFile)
+        return updateProfile(payload)
       }
+
+      const payload: Partial<UserProfile> = {}
+      payload.phone_number = form.phone_number
+      payload.bio = form.bio
       if (form.full_name?.trim()) {
         payload.full_name = form.full_name
       }
@@ -66,7 +90,8 @@ export default function ProfilePage() {
           user: { ...authState.user, username: data.username, email: data.email },
         })
       }
-      toast.success('Profile updated')
+      toast.success(t.profileUpdated)
+      setAvatarFile(null)
       setIsEditing(false)
     },
     onError: (err: any) => {
@@ -79,7 +104,7 @@ export default function ProfilePage() {
           return
         }
       }
-      toast.error('Failed to update profile')
+      toast.error(t.failedUpdateProfile)
     },
   })
 
@@ -108,8 +133,8 @@ export default function ProfilePage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Profile"
-        description="Your account information and settings."
+        title={t.profile}
+        description={t.profileDescription}
       />
 
       {/* Profile Card */}
@@ -124,12 +149,40 @@ export default function ProfilePage() {
         {/* Avatar + Info */}
         <div className="relative px-6 pb-6">
           <div className="-mt-12 flex flex-col items-start gap-4 sm:flex-row sm:items-end">
-            <div className="flex h-24 w-24 items-center justify-center rounded-2xl border-4 border-[var(--color-surface)] bg-gradient-to-br from-accent/50 to-purple-500/50 font-heading text-3xl font-bold text-white shadow-glow">
-              {(displayUser as any)?.username?.[0]?.toUpperCase() ?? 'U'}
+            <div className="relative">
+              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border-4 border-[var(--color-surface)] bg-gradient-to-br from-accent/50 to-purple-500/50 font-heading text-3xl font-bold text-white shadow-glow">
+                {avatarPreview ? (
+                  <img
+                    src={avatarPreview}
+                    alt={(displayUser as any)?.username ?? t.user}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  (displayUser as any)?.username?.[0]?.toUpperCase() ?? 'U'
+                )}
+              </div>
+              {isEditing && (
+                <label
+                  className="absolute -bottom-2 -right-2 flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-white/10 bg-accent text-white shadow-lg transition hover:bg-accent-dark"
+                  title={t.changePhoto}
+                  aria-label={t.changePhoto}
+                >
+                  <Camera className="h-4 w-4" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null
+                      setAvatarFile(file)
+                    }}
+                  />
+                </label>
+              )}
             </div>
             <div className="mb-1 flex-1">
               <h2 className="font-heading text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
-                {(displayUser as any)?.username ?? 'User'}
+                {(displayUser as any)?.username ?? t.user}
               </h2>
               <p className="text-sm" style={{ color: 'var(--color-text-faint)' }}>
                 {(displayUser as any)?.email ?? 'email@example.com'}
@@ -137,7 +190,7 @@ export default function ProfilePage() {
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-status-active/10 px-2.5 py-0.5 text-xs font-medium text-status-active ring-1 ring-inset ring-status-active/20">
                   <span className="h-1.5 w-1.5 rounded-full bg-status-active shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
-                  Active
+                  {t.active}
                 </span>
                 <span className="flex items-center gap-1 text-xs capitalize" style={{ color: 'var(--color-text-faint)' }}>
                   {((displayUser as any)?.role === 'student' || (displayUser as any)?.role === 'teacher') ? (
@@ -145,14 +198,14 @@ export default function ProfilePage() {
                   ) : (
                     <Globe className="h-3 w-3" />
                   )}
-                  {((displayUser as any)?.role as string) || 'User'}
+                  {((displayUser as any)?.role === 'teacher' ? t.teacher : (displayUser as any)?.role === 'student' ? t.student : t.user)}
                 </span>
               </div>
             </div>
             {!isEditing ? (
               <button type="button" className="btn-secondary text-sm" onClick={startEditing}>
                 <Edit3 className="h-4 w-4" />
-                Edit Profile
+                {t.editProfile}
               </button>
             ) : (
               <div className="flex gap-2">
@@ -163,15 +216,18 @@ export default function ProfilePage() {
                   disabled={updateMut.isPending}
                 >
                   {updateMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  Save
+                  {t.save}
                 </button>
                 <button
                   type="button"
                   className="btn-secondary text-sm"
-                  onClick={() => setIsEditing(false)}
+                  onClick={() => {
+                    setAvatarFile(null)
+                    setIsEditing(false)
+                  }}
                 >
                   <X className="h-4 w-4" />
-                  Cancel
+                  {t.cancel}
                 </button>
               </div>
             )}
@@ -183,10 +239,10 @@ export default function ProfilePage() {
       {((displayUser as any)?.role !== 'student') && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
-            { label: 'Groups', value: totalGroups },
-            { label: 'Students', value: totalStudents },
-            { label: 'Tests Created', value: totalTests },
-            { label: 'Materials', value: totalMaterials },
+            { label: t.groups, value: totalGroups },
+            { label: t.students, value: totalStudents },
+            { label: t.tests, value: totalTests },
+            { label: t.materials, value: totalMaterials },
           ].map((stat) => (
             <div key={stat.label} className="glass-card p-4 text-center">
               <div className="font-heading text-xl font-bold" style={{ color: 'var(--color-text)' }}>{stat.value}</div>
@@ -204,12 +260,12 @@ export default function ProfilePage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/[0.08]">
               <User className="h-4 w-4 text-accent-light" />
             </div>
-            <h3 className="font-heading text-sm font-semibold" style={{ color: 'var(--color-text-secondary)' }}>Account Details</h3>
+            <h3 className="font-heading text-sm font-semibold" style={{ color: 'var(--color-text-secondary)' }}>{t.accountDetails}</h3>
           </div>
           <div className="space-y-4">
             {/* Username */}
             <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-color)' }}>
-              <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>Username</span>
+              <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>{t.username}</span>
               {isEditing ? (
                 <input
                   type="text"
@@ -224,7 +280,7 @@ export default function ProfilePage() {
             {/* Email */}
             <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-color)' }}>
               <span className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--color-text-faint)' }}>
-                <Mail className="h-3 w-3" /> Email
+                <Mail className="h-3 w-3" /> {t.email}
               </span>
               {isEditing ? (
                 <input
@@ -239,7 +295,7 @@ export default function ProfilePage() {
             </div>
             {/* Full Name */}
             <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-color)' }}>
-              <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>Full Name</span>
+              <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>{t.fullName}</span>
               {isEditing ? (
                 <input
                   type="text"
@@ -254,7 +310,7 @@ export default function ProfilePage() {
             {/* Phone */}
             <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-color)' }}>
               <span className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--color-text-faint)' }}>
-                <Phone className="h-3 w-3" /> Phone
+                <Phone className="h-3 w-3" /> {t.phone}
               </span>
               {isEditing ? (
                 <input
@@ -270,7 +326,7 @@ export default function ProfilePage() {
             {/* Bio */}
             <div className="flex items-start justify-between" style={{ borderColor: 'var(--border-color)' }}>
               <span className="flex items-center gap-1.5 pt-1 text-sm" style={{ color: 'var(--color-text-faint)' }}>
-                <FileText className="h-3 w-3" /> Bio
+                <FileText className="h-3 w-3" /> {t.bio}
               </span>
               {isEditing ? (
                 <textarea
@@ -294,24 +350,24 @@ export default function ProfilePage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/[0.08]">
               <Shield className="h-4 w-4 text-accent-light" />
             </div>
-            <h3 className="font-heading text-sm font-semibold" style={{ color: 'var(--color-text-secondary)' }}>Security</h3>
+            <h3 className="font-heading text-sm font-semibold" style={{ color: 'var(--color-text-secondary)' }}>{t.security}</h3>
           </div>
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-color)' }}>
-              <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>Password</span>
+              <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>{t.password}</span>
               <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>••••••••••</span>
             </div>
             <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-color)' }}>
-              <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>Last login</span>
-              <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Just now</span>
+              <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>{t.lastLogin}</span>
+              <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{t.justNow}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>Two-factor auth</span>
+              <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>{t.twoFactorAuth}</span>
               <span
                 className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs"
                 style={{ background: 'var(--input-bg)', color: 'var(--color-text-faint)' }}
               >
-                Not enabled
+                {t.notEnabled}
               </span>
             </div>
           </div>
@@ -320,19 +376,19 @@ export default function ProfilePage() {
             className="btn-secondary mt-5 w-full text-sm disabled:opacity-50"
             onClick={() => {
               if (!displayUser?.email) {
-                toast.error('No email address found to send reset link.');
+                toast.error(t.noEmailForReset);
                 return;
               }
               const promise = requestPasswordReset({ email: displayUser.email });
               toast.promise(promise, {
-                loading: 'Sending password reset link...',
-                success: 'Password reset link sent to your email!',
-                error: 'Failed to send password reset link.'
+                loading: t.sendingReset,
+                success: t.resetSent,
+                error: t.resetFailed
               });
             }}
           >
             <Shield className="h-4 w-4" />
-            Change Password
+            {t.changePassword}
           </button>
         </div>
       </div>

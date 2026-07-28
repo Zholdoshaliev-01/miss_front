@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, BookOpen, ClipboardCheck, FileText, GraduationCap, Loader2, Star, Trophy, UserRound } from 'lucide-react'
+import { ArrowLeft, BookOpen, ClipboardCheck, FileText, GraduationCap, Loader2, Star, Trophy, UserRound, Video } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { getStudentGlobalLeaderboard, getStudentGroupLeaderboard, getStudentGroups } from '@/modules/student/api'
 import { useAuthStore } from '@/modules/auth/store/authStore'
+import { useCommonCopy } from '@/shared/i18n'
 import axios from 'axios'
 
 function normalizeStudentGroup(raw: any) {
@@ -22,10 +23,10 @@ function normalizeStudentGroup(raw: any) {
   }
 }
 
-function formatDate(dateStr?: string) {
-  if (!dateStr) return 'recently'
+function formatDate(dateStr: string | undefined, fallback: string) {
+  if (!dateStr) return fallback
   const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'recently'
+  if (Number.isNaN(date.getTime())) return fallback
   return date.toLocaleDateString([], {
     year: 'numeric',
     month: 'short',
@@ -33,13 +34,14 @@ function formatDate(dateStr?: string) {
   })
 }
 
-function getLeaderboardErrorMessage(error: unknown) {
-  if (!axios.isAxiosError(error)) return 'Unknown error'
+function getLeaderboardErrorMessage(error: unknown, fallback: string) {
+  if (!axios.isAxiosError(error)) return fallback
   const data = error.response?.data as any
-  return data?.detail || data?.error || `Request failed with status ${error.response?.status ?? 'unknown'}`
+  return data?.detail || data?.error || fallback
 }
 
 export default function StudentGroupDetailPage() {
+  const { t } = useCommonCopy()
   const { groupId } = useParams()
   const numericGroupId = Number(groupId)
   const user = useAuthStore((state) => state.user)
@@ -85,8 +87,8 @@ export default function StudentGroupDetailPage() {
     return (
       <div className="glass-card flex flex-col items-center justify-center py-20 text-center">
         <GraduationCap className="h-10 w-10 text-white/15" />
-        <h1 className="mt-4 font-heading text-xl font-bold text-white">Group not found</h1>
-        <Link to="/student/groups" className="btn-primary mt-6 !py-2.5">Back to Groups</Link>
+        <h1 className="mt-4 font-heading text-xl font-bold text-white">{t.groupNotFound}</h1>
+        <Link to="/student/groups" className="btn-primary mt-6 !py-2.5">{t.backToGroups}</Link>
       </div>
     )
   }
@@ -95,7 +97,7 @@ export default function StudentGroupDetailPage() {
     <div className="space-y-6">
       <Link to="/student/groups" className="inline-flex items-center gap-1.5 text-sm text-white/40 transition hover:text-white/70">
         <ArrowLeft className="h-4 w-4" />
-        Back to My Groups
+        {t.backToGroups}
       </Link>
 
       <div className="relative overflow-hidden rounded-2xl border border-accent/15 bg-gradient-to-br from-accent/[0.08] to-purple-500/[0.03] p-6">
@@ -108,10 +110,10 @@ export default function StudentGroupDetailPage() {
             <div>
               <h1 className="font-heading text-3xl font-bold tracking-tight text-white">{group.group_name}</h1>
               <p className="mt-1 text-sm text-white/45">
-                {group.level ? `Level ${group.level}` : 'Level not set'} · Joined {formatDate(group.joined_at)}
+                {group.level ? `${t.level} ${group.level}` : t.levelNotSet} · {t.joined} {formatDate(group.joined_at, t.recently)}
               </p>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/55">
-                {group.description || 'No group description yet.'}
+                {group.description || t.noGroupDescription}
               </p>
             </div>
           </div>
@@ -122,8 +124,8 @@ export default function StudentGroupDetailPage() {
                 <UserRound className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs uppercase tracking-wider text-white/30">Teacher</p>
-                <p className="truncate text-sm font-semibold text-white/75">{group.teacher_name || 'Teacher info not available'}</p>
+                <p className="text-xs uppercase tracking-wider text-white/30">{t.teacher}</p>
+                <p className="truncate text-sm font-semibold text-white/75">{group.teacher_name || t.teacherInfoUnavailable}</p>
                 {group.teacher_email && <p className="truncate text-xs text-white/35">{group.teacher_email}</p>}
               </div>
             </div>
@@ -131,27 +133,32 @@ export default function StudentGroupDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <Link to={`/student/live/${group.id}`} className="glass-card glass-card-hover p-5">
+          <Video className="h-7 w-7 text-cyan-300" />
+          <h2 className="mt-4 font-heading text-lg font-semibold text-white">{t.onlineLesson}</h2>
+          <p className="mt-1 text-sm text-white/45">{t.joinLesson}</p>
+        </Link>
         <Link to={`/student/materials?group=${group.id}`} className="glass-card glass-card-hover p-5">
           <BookOpen className="h-7 w-7 text-emerald-400" />
-          <h2 className="mt-4 font-heading text-lg font-semibold text-white">Materials</h2>
-          <p className="mt-1 text-sm text-white/45">{Number(group.materials_count) || 0} available</p>
+          <h2 className="mt-4 font-heading text-lg font-semibold text-white">{t.materials}</h2>
+          <p className="mt-1 text-sm text-white/45">{Number(group.materials_count) || 0} {t.available}</p>
         </Link>
         <Link to={`/student/homeworks?group=${group.id}`} className="glass-card glass-card-hover p-5">
           <FileText className="h-7 w-7 text-amber-400" />
-          <h2 className="mt-4 font-heading text-lg font-semibold text-white">Homework</h2>
-          <p className="mt-1 text-sm text-white/45">{Number(group.homeworks_count) || 0} assigned</p>
+          <h2 className="mt-4 font-heading text-lg font-semibold text-white">{t.homework}</h2>
+          <p className="mt-1 text-sm text-white/45">{Number(group.homeworks_count) || 0} {t.assigned}</p>
         </Link>
         <Link to={`/student/tests?group=${group.id}`} className="glass-card glass-card-hover p-5">
           <ClipboardCheck className="h-7 w-7 text-violet-400" />
-          <h2 className="mt-4 font-heading text-lg font-semibold text-white">Tests</h2>
-          <p className="mt-1 text-sm text-white/45">{Number(group.tests_count) || 0} available</p>
+          <h2 className="mt-4 font-heading text-lg font-semibold text-white">{t.tests}</h2>
+          <p className="mt-1 text-sm text-white/45">{Number(group.tests_count) || 0} {t.available}</p>
         </Link>
         <a href="#group-rating" className="glass-card glass-card-hover p-5">
           <Trophy className="h-7 w-7 text-yellow-400" />
-          <h2 className="mt-4 font-heading text-lg font-semibold text-white">Rating</h2>
+          <h2 className="mt-4 font-heading text-lg font-semibold text-white">{t.rating}</h2>
           <p className="mt-1 text-sm text-white/45">
-            {myRankIndex >= 0 ? `Your place #${myRankIndex + 1}` : `${sortedLeaderboard.length} students`}
+            {myRankIndex >= 0 ? `${t.yourPlace} #${myRankIndex + 1}` : `${sortedLeaderboard.length} ${t.students.toLowerCase()}`}
           </p>
         </a>
       </div>
@@ -159,11 +166,11 @@ export default function StudentGroupDetailPage() {
       <div id="group-rating" className="glass-card overflow-hidden">
         <div className="flex flex-col gap-2 border-b border-white/[0.06] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="font-heading text-lg font-semibold text-white">Group Rating</h2>
+            <h2 className="font-heading text-lg font-semibold text-white">{t.groupRating}</h2>
             <p className="mt-1 text-sm text-white/40">
               {ratingScope === 'group'
-                ? `Students from ${group.group_name}, ranked by tests and homework progress.`
-                : `All students studying with ${group.teacher_name || 'this teacher'}, across groups.`}
+                ? `${t.students} ${group.group_name}: ${t.studentsFromGroup}`
+                : t.allTeacherStudents}
             </p>
           </div>
           <div className="flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
@@ -175,7 +182,7 @@ export default function StudentGroupDetailPage() {
                 ratingScope === 'group' ? 'bg-accent/20 text-white' : 'text-white/45 hover:text-white/70',
               ].join(' ')}
             >
-              This Group
+              {t.thisGroup}
             </button>
             <button
               type="button"
@@ -185,12 +192,12 @@ export default function StudentGroupDetailPage() {
                 ratingScope === 'teacher' ? 'bg-accent/20 text-white' : 'text-white/45 hover:text-white/70',
               ].join(' ')}
             >
-              Teacher
+              {t.teacher}
             </button>
           </div>
           {myRankIndex >= 0 && (
             <div className="rounded-full bg-accent/[0.1] px-3 py-1 text-sm font-semibold text-accent-light">
-              Your rank #{myRankIndex + 1}
+              {t.yourRank} #{myRankIndex + 1}
             </div>
           )}
         </div>
@@ -202,14 +209,14 @@ export default function StudentGroupDetailPage() {
         ) : leaderboardError ? (
           <div className="flex flex-col items-center justify-center py-14 text-center">
             <Trophy className="h-10 w-10 text-rose-400/40" />
-            <p className="mt-4 text-sm font-medium text-white/50">Rating could not be loaded</p>
-            <p className="mt-1 text-sm text-white/30">{getLeaderboardErrorMessage(leaderboardError)}</p>
+            <p className="mt-4 text-sm font-medium text-white/50">{t.ratingCouldNotLoad}</p>
+            <p className="mt-1 text-sm text-white/30">{getLeaderboardErrorMessage(leaderboardError, t.unknownError)}</p>
           </div>
         ) : sortedLeaderboard.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-center">
             <Trophy className="h-10 w-10 text-white/15" />
-            <p className="mt-4 text-sm font-medium text-white/50">No rating yet</p>
-            <p className="mt-1 text-sm text-white/30">Complete homework or tests to appear here.</p>
+            <p className="mt-4 text-sm font-medium text-white/50">{t.noRatingYet}</p>
+            <p className="mt-1 text-sm text-white/30">{t.completeWorkRating}</p>
           </div>
         ) : (
           <div className="divide-y divide-white/[0.04]">
@@ -225,11 +232,11 @@ export default function StudentGroupDetailPage() {
                     <p className="truncate text-xs text-white/35">{entry.email}</p>
                   </div>
                   <div className="hidden text-center sm:block">
-                    <p className="text-xs text-white/30">Tests</p>
+                    <p className="text-xs text-white/30">{t.tests}</p>
                     <p className="font-heading text-sm font-bold text-white/70">{entry.tests_total_score}</p>
                   </div>
                   <div className="hidden text-center sm:block">
-                    <p className="text-xs text-white/30">HW</p>
+                    <p className="text-xs text-white/30">{t.homework}</p>
                     <p className="font-heading text-sm font-bold text-white/70">{entry.homeworks_done}</p>
                   </div>
                   <div className="inline-flex items-center gap-1 rounded-full bg-white/[0.06] px-3 py-1">

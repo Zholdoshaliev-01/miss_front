@@ -13,10 +13,11 @@ import ChatSidebar from '../components/ChatSidebar'
 import MessageItem from '../components/MessageItem'
 import type { MessageAttachment } from '../components/MessageItem'
 import MessageInput from '../components/MessageInput'
-import { getMessages, sendMessage, getMembers } from '../api'
-import type { RoomOut, MessageOut } from '../types'
+import { getMessages, sendMessage, getMembers, getUsersBulk } from '../api'
+import type { RoomOut, MessageOut, ChatUserSummary, MemberOut } from '../types'
 import { useAuthStore } from '@/modules/auth/store/authStore'
 import { useChatScroll } from '../hooks/useChatScroll'
+import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
 
 /* ─── Helpers ─── */
 
@@ -73,11 +74,24 @@ function computeGrouping(messages: MessageOut[]) {
   })
 }
 
+function isTeacherRole(role?: string) {
+  return role === 'teacher' || role === 'admin'
+}
+
+function isGenericUserName(name?: string) {
+  return !name || /^User #\d+$/i.test(name.trim())
+}
+
+function getAvatarUrl(path?: string | null) {
+  return path ? buildMediaUrl(path) : ''
+}
+
 /* ─── Component ─── */
 
 export default function ChatPage() {
   const user = useAuthStore((s) => s.user)
-  const userId = (user as any)?.id
+  const authUserId = Number((user as any)?.id) || 0
+  const isTeacher = isTeacherRole(user?.role)
   const queryClient = useQueryClient()
   const [activeRoom, setActiveRoom] = useState<RoomOut | null>(null)
 
@@ -110,11 +124,87 @@ export default function ChatPage() {
     enabled: !!activeRoom,
   })
 
+  const chatUserIds = useMemo(() => {
+    const ids = [
+      ...serverMessages.map((m) => m.sender_id),
+      ...optimisticMessages.map((m) => m.sender_id),
+      ...members.map((m) => m.user_id),
+      authUserId,
+    ]
+    return [...new Set(ids.filter((id) => Number.isFinite(id) && id > 0))].sort((a, b) => a - b)
+  }, [serverMessages, optimisticMessages, members, authUserId])
+
+  const { data: chatUsers = [] } = useQuery({
+    queryKey: ['chat-users', chatUserIds.join(',')],
+    queryFn: () => getUsersBulk(chatUserIds),
+    enabled: chatUserIds.length > 0,
+    staleTime: 60_000,
+  })
+
+  const currentChatUser = useMemo(() => {
+    if (authUserId) return chatUsers.find((chatUser) => chatUser.id === authUserId) ?? null
+    return chatUsers.find((chatUser) =>
+      (user?.username && chatUser.username === user.username) ||
+      (user?.email && chatUser.email === user.email),
+    ) ?? null
+  }, [authUserId, chatUsers, user])
+
+  const currentUserId = currentChatUser?.id ?? authUserId
+
+  const userById = useMemo(() => {
+    const map = new Map<number, ChatUserSummary>()
+    chatUsers.forEach((chatUser) => map.set(chatUser.id, chatUser))
+    if (currentUserId) {
+      const existing = map.get(currentUserId)
+      map.set(currentUserId, {
+        id: currentUserId,
+        username: existing?.username || user?.username || '',
+        full_name: existing?.full_name || (user as any)?.full_name || '',
+        email: existing?.email || user?.email || '',
+        role: existing?.role || user?.role as ChatUserSummary['role'],
+        avatar: existing?.avatar || (user as any)?.avatar || null,
+      })
+    }
+    return map
+  }, [chatUsers, currentUserId, user])
+
+  const getDisplayName = useCallback((id: number, fallback?: string) => {
+    const chatUser = userById.get(id)
+    return chatUser?.username || chatUser?.full_name || (!isGenericUserName(fallback) ? fallback : '') || `User #${id}`
+  }, [userById])
+
+  const namedServerMessages = useMemo(() => (
+    serverMessages.map((message) => {
+      const chatUser = userById.get(message.sender_id)
+      return {
+        ...message,
+        sender_name: getDisplayName(message.sender_id, message.sender_name),
+        sender_avatar: chatUser?.avatar ?? message.sender_avatar ?? null,
+        is_teacher: message.is_teacher || isTeacherRole(chatUser?.role),
+      }
+    })
+  ), [serverMessages, userById, getDisplayName])
+
+  const namedMembers = useMemo<MemberOut[]>(() => (
+    members.map((member) => {
+      const chatUser = userById.get(member.user_id)
+      const name = getDisplayName(member.user_id, member.full_name)
+      return {
+        ...member,
+        username: chatUser?.username ?? member.username,
+        full_name: name,
+        email: chatUser?.email ?? member.email,
+        role: chatUser?.role ?? member.role,
+        avatar: chatUser?.avatar ?? member.avatar ?? null,
+      }
+    })
+  ), [members, userById, getDisplayName])
+
   const allMessages = useMemo(() => {
-    const serverIds = new Set(serverMessages.map((m) => m.id))
+    const serverIds = new Set(namedServerMessages.map((m) => m.id))
     const pendingOptimistic = optimisticMessages.filter((om) => !serverIds.has(om.id) && om.id < 0)
-    return [...serverMessages, ...pendingOptimistic]
-  }, [serverMessages, optimisticMessages])
+    return [...namedServerMessages, ...pendingOptimistic]
+  }, [namedServerMessages, optimisticMessages])
 
   const groupedMessages = useMemo(() => computeGrouping(allMessages), [allMessages])
 
@@ -156,9 +246,10 @@ export default function ChatPage() {
   /* ─── Send message (with optional file) ─── */
 
   const sendMsgMut = useMutation({
-    mutationFn: ({ text, file }: { text: string; file?: File }) =>
+    mutationFn: ({ text, file }: { text: string; file?: File; optimisticId: number }) =>
       sendMessage(activeRoom!.group_id, { text }, file),
-    onSuccess: (_, { file }) => {
+    onSuccess: (_, { file, optimisticId }) => {
+      setOptimisticMessages((prev) => prev.filter((message) => message.id !== optimisticId))
       if (file) {
         setAttachmentMap((prev) => {
           const updated = { ...prev }
@@ -189,9 +280,10 @@ export default function ChatPage() {
       const optimistic: MessageOut = {
         id: msgId,
         room_id: activeRoom.id,
-        sender_id: userId ?? 0,
-        sender_name: user?.username ?? 'You',
-        is_teacher: true,
+        sender_id: currentUserId,
+        sender_name: currentChatUser?.username || user?.username || 'You',
+        sender_avatar: currentChatUser?.avatar ?? (user as any)?.avatar ?? null,
+        is_teacher: isTeacher,
         text,
         is_deleted: false,
         edited_at: null,
@@ -216,9 +308,9 @@ export default function ChatPage() {
       setOptimisticMessages((prev) => [...prev, optimistic])
       forceScrollToBottom()
 
-      sendMsgMut.mutate({ text, file })
+      sendMsgMut.mutate({ text, file, optimisticId: msgId })
     },
-    [activeRoom, userId, user, forceScrollToBottom, sendMsgMut],
+    [activeRoom, currentUserId, currentChatUser, user, isTeacher, forceScrollToBottom, sendMsgMut],
   )
 
   /* ─── Room change ─── */
@@ -261,20 +353,28 @@ export default function ChatPage() {
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <div
-                    className="flex h-10 w-10 items-center justify-center rounded-xl font-heading text-sm font-bold text-white"
-                    style={{ background: 'linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))' }}
-                  >
-                    {activeRoom.title?.[0]?.toUpperCase() ?? '#'}
-                  </div>
+                  {activeRoom.image_url ? (
+                    <img
+                      src={activeRoom.image_url}
+                      alt={activeRoom.title || 'Chat'}
+                      className="h-10 w-10 rounded-xl object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-xl font-heading text-sm font-bold text-white"
+                      style={{ background: 'linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))' }}
+                    >
+                      {activeRoom.title?.[0]?.toUpperCase() ?? '#'}
+                    </div>
+                  )}
                   <div>
                     <h3 className="font-heading text-base font-semibold" style={{ color: 'var(--color-text)' }}>
                       {activeRoom.title || 'Untitled'}
                     </h3>
                     <p className="text-xs" style={{ color: 'var(--color-text-faint)' }}>
-                      {members.length} members
-                      {members.filter((m) => m.is_online).length > 0
-                        ? ` · ${members.filter((m) => m.is_online).length} online`
+                      {namedMembers.length} members
+                      {namedMembers.filter((m) => m.is_online).length > 0
+                        ? ` · ${namedMembers.filter((m) => m.is_online).length} online`
                         : ''}
                     </p>
                   </div>
@@ -352,9 +452,9 @@ export default function ChatPage() {
                             </div>
                           </div>
                         )}
-                        <MessageItem
+                          <MessageItem
                           message={msg}
-                          isOwn={msg.sender_id === userId}
+                          isOwn={Boolean(currentUserId) && msg.sender_id === currentUserId}
                           roomId={activeRoom.group_id}
                           isFirstInGroup={isFirstInGroup}
                           isLastInGroup={isLastInGroup}
@@ -433,17 +533,25 @@ export default function ChatPage() {
             <div className="flex-1 overflow-y-auto">
               {/* Room info */}
               <div className="flex flex-col items-center p-6 text-center" style={{ borderBottom: '1px solid var(--border-color)' }}>
-                <div
-                  className="flex h-16 w-16 items-center justify-center rounded-2xl font-heading text-2xl font-bold text-white shadow-lg mb-3"
-                  style={{ background: 'linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))' }}
-                >
-                  {activeRoom.title?.[0]?.toUpperCase() ?? '#'}
-                </div>
+                {activeRoom.image_url ? (
+                  <img
+                    src={activeRoom.image_url}
+                    alt={activeRoom.title || 'Chat'}
+                    className="mb-3 h-16 w-16 rounded-2xl object-cover shadow-lg"
+                  />
+                ) : (
+                  <div
+                    className="flex h-16 w-16 items-center justify-center rounded-2xl font-heading text-2xl font-bold text-white shadow-lg mb-3"
+                    style={{ background: 'linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))' }}
+                  >
+                    {activeRoom.title?.[0]?.toUpperCase() ?? '#'}
+                  </div>
+                )}
                 <h2 className="font-heading text-lg font-bold" style={{ color: 'var(--color-text)' }}>
                   {activeRoom.title || 'Untitled'}
                 </h2>
                 <p className="text-xs mt-1" style={{ color: 'var(--color-text-faint)' }}>
-                  {members.length} members
+                  {namedMembers.length} members
                 </p>
               </div>
 
@@ -453,12 +561,20 @@ export default function ChatPage() {
                   Members
                 </div>
                 <div className="space-y-2">
-                  {members.map((m) => (
+                  {namedMembers.map((m) => (
                     <div key={m.id} className="flex items-center gap-3 p-2 rounded-xl transition-colors hover:bg-[var(--color-surface-hover)]">
-                      <div className="relative">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-xs font-bold text-indigo-400">
-                          {m.full_name?.[0]?.toUpperCase() ?? '?'}
-                        </div>
+                        <div className="relative">
+                        {m.avatar ? (
+                          <img
+                            src={getAvatarUrl(m.avatar)}
+                            alt={m.full_name || 'Member'}
+                            className="h-9 w-9 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-xs font-bold text-indigo-400">
+                            {m.full_name?.[0]?.toUpperCase() ?? '?'}
+                          </div>
+                        )}
                         {m.is_online && (
                           <div className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--color-bg-alt)] bg-emerald-500" />
                         )}
@@ -468,12 +584,12 @@ export default function ChatPage() {
                           {m.full_name || 'Unknown User'}
                         </div>
                         <div className="text-xs truncate" style={{ color: m.is_online ? 'var(--color-accent-light)' : 'var(--color-text-faint)' }}>
-                          {m.is_online ? 'Online' : 'Offline'}
+                          {isTeacherRole(m.role) ? 'Teacher' : m.is_online ? 'Online' : 'Offline'}
                         </div>
                       </div>
                     </div>
                   ))}
-                  {members.length === 0 && (
+                  {namedMembers.length === 0 && (
                     <div className="text-sm text-center py-4" style={{ color: 'var(--color-text-faint)' }}>
                       No members found.
                     </div>

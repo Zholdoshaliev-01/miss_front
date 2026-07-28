@@ -3,8 +3,10 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, BarChart3, Calendar, CheckCircle, Clock, Edit3, HelpCircle, Loader2 } from 'lucide-react'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { getTestDetail } from '@/modules/tests/api'
+import { useCommonCopy } from '@/shared/i18n'
 
 export default function TestDetailPage() {
+  const { t } = useCommonCopy()
   const { id } = useParams()
   const testId = Number(id)
 
@@ -29,7 +31,7 @@ export default function TestDetailPage() {
     return (
       <div className="glass-card flex flex-col items-center justify-center py-20 text-center">
         <HelpCircle className="h-10 w-10 text-white/15" />
-        <h1 className="mt-4 font-heading text-xl font-bold text-white">Test not found</h1>
+        <h1 className="mt-4 font-heading text-xl font-bold text-white">{t.testNotFound}</h1>
       </div>
     )
   }
@@ -39,20 +41,20 @@ export default function TestDetailPage() {
       <div>
         <Link to="/groups" className="mb-4 inline-flex items-center gap-1.5 text-sm text-white/40 transition hover:text-white/70">
           <ArrowLeft className="h-4 w-4" />
-          Back
+          {t.backToGroup}
         </Link>
         <PageHeader
           title={test.title}
-          description={test.description || 'No description'}
+          description={test.description || t.noDescriptionYet}
           actions={
             <div className="flex gap-2">
               <Link to={`/tests/${id}/builder`} className="btn-secondary text-sm">
                 <Edit3 className="h-4 w-4" />
-                Edit Questions
+                {t.editQuestions}
               </Link>
               <Link to={`/tests/${id}/results`} className="btn-primary text-sm">
                 <BarChart3 className="h-4 w-4" />
-                View Results
+                {t.viewResults}
               </Link>
             </div>
           }
@@ -63,49 +65,49 @@ export default function TestDetailPage() {
         <div className="glass-card p-5 text-center">
           <HelpCircle className="mx-auto mb-2 h-5 w-5 text-accent-light/40" />
           <div className="font-heading text-2xl font-bold text-white">{questions.length}</div>
-          <div className="text-xs text-white/35">Questions</div>
+          <div className="text-xs text-white/35">{t.questions}</div>
         </div>
         <div className="glass-card p-5 text-center">
           <BarChart3 className="mx-auto mb-2 h-5 w-5 text-emerald-400/40" />
           <div className="font-heading text-2xl font-bold text-white">{totalPoints}</div>
-          <div className="text-xs text-white/35">Total Points</div>
+          <div className="text-xs text-white/35">{t.totalPoints}</div>
         </div>
         <div className="glass-card p-5 text-center">
           <CheckCircle className="mx-auto mb-2 h-5 w-5 text-violet-400/40" />
           <div className="font-heading text-2xl font-bold text-white">
             {questions.filter((question) => question.answers?.some((answer) => answer.is_correct)).length}
           </div>
-          <div className="text-xs text-white/35">With Correct Answer</div>
+          <div className="text-xs text-white/35">{t.withCorrectAnswer}</div>
         </div>
         <div className="glass-card p-5 text-center">
           <Calendar className="mx-auto mb-2 h-5 w-5 text-amber-400/40" />
           <div className="font-heading text-sm font-bold text-white">
             {new Date(test.created_at).toLocaleDateString()}
           </div>
-          <div className="text-xs text-white/35">Created</div>
+          <div className="text-xs text-white/35">{t.created}</div>
         </div>
       </div>
 
       <div className="glass-card p-6">
-        <h3 className="mb-3 font-heading text-sm font-semibold text-white/60">Description</h3>
-        <p className="text-sm leading-relaxed text-white/50">{test.description || 'No description yet.'}</p>
+        <h3 className="mb-3 font-heading text-sm font-semibold text-white/60">{t.description}</h3>
+        <p className="text-sm leading-relaxed text-white/50">{test.description || t.noDescriptionYet}</p>
         <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-white/30">
           <span className="flex items-center gap-1.5">
             <Clock className="h-4 w-4" />
-            Time limit is configured in backend if enabled
+            {t.noTimeLimit}
           </span>
         </div>
       </div>
 
       <div className="glass-card overflow-hidden">
         <div className="border-b border-white/[0.06] px-6 py-4">
-          <h3 className="font-heading text-sm font-semibold text-white/70">Questions</h3>
+          <h3 className="font-heading text-sm font-semibold text-white/70">{t.questions}</h3>
         </div>
         {questions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-center">
             <HelpCircle className="h-10 w-10 text-white/15" />
-            <p className="mt-4 text-sm font-medium text-white/50">No questions saved in backend yet</p>
-            <Link to={`/tests/${id}/builder`} className="btn-primary mt-5 text-sm">Add Questions</Link>
+            <p className="mt-4 text-sm font-medium text-white/50">{t.noQuestionsSaved}</p>
+            <Link to={`/tests/${id}/builder`} className="btn-primary mt-5 text-sm">{t.addQuestions}</Link>
           </div>
         ) : (
           <div className="divide-y divide-white/[0.04]">
@@ -117,11 +119,11 @@ export default function TestDetailPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-white/70">{question.text}</p>
                   <p className="mt-0.5 text-xs text-white/30">
-                    {question.answers?.length ?? 0} answer options · {question.answers?.some((answer) => answer.is_correct) ? 'has correct answer' : 'no correct answer'}
+                    {question.answers?.length ?? 0} {t.answerOptions} · {question.answers?.some((answer) => answer.is_correct) ? t.hasCorrectAnswer : t.noCorrectAnswer}
                   </p>
                 </div>
                 <span className="shrink-0 rounded-full bg-accent/[0.08] px-2.5 py-0.5 text-xs font-semibold text-accent-light">
-                  {question.points} pts
+                  {question.points} {t.pointsShort}
                 </span>
               </div>
             ))}

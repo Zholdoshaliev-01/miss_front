@@ -37,6 +37,10 @@
   --btn-secondary-border: rgba(255, 255, 255, 0.1);
   --scrollbar-thumb: rgba(255, 255, 255, 0.1);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+  --academy-bg:
+    radial-gradient(circle at 72% 12%, rgba(99, 102, 241, 0.16), transparent 32%),
+    radial-gradient(circle at 16% 78%, rgba(14, 165, 233, 0.10), transparent 30%),
+    linear-gradient(135deg, #050713 0%, #080b18 48%, #0b1024 100%);
 }
 
 :root[data-theme='light'] {
@@ -526,6 +530,7 @@ h1, h2, h3, h4, h5, h6 {
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
+  background: var(--academy-bg);
 }
 .mesh-gradient::before {
   content: '';
@@ -534,7 +539,7 @@ h1, h2, h3, h4, h5, h6 {
   height: 600px;
   top: -200px;
   right: -100px;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.14) 0%, transparent 70%);
   animation: glow-pulse 6s ease-in-out infinite;
 }
 .mesh-gradient::after {
@@ -544,7 +549,7 @@ h1, h2, h3, h4, h5, h6 {
   height: 500px;
   bottom: -200px;
   left: -100px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.09) 0%, transparent 70%);
   animation: glow-pulse 8s ease-in-out 3s infinite;
 }
 

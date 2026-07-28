@@ -1,10 +1,19 @@
-import { useQuery } from '@tanstack/react-query'
-import { BookOpen, Download, FileText, Loader2, Search } from 'lucide-react'
+import { useQueries, useQuery } from '@tanstack/react-query'
+import { BookOpen, Download, ExternalLink, FileText, Loader2, Search } from 'lucide-react'
 import { useState } from 'react'
 import { getStudentGroups, getStudentMaterials } from '@/modules/student/api'
 import type { Material } from '@/modules/materials/types'
+import { useCommonCopy } from '@/shared/i18n'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+
+function buildFileUrl(file?: string | null) {
+  if (!file) return null
+  if (file.startsWith('http://') || file.startsWith('https://')) return file
+  const base = API_BASE_URL.replace(/\/api\/?$/, '').replace(/\/$/, '')
+  const path = file.startsWith('/') ? file : `/${file}`
+  return `${base}${path}`
+}
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return ''
@@ -24,6 +33,10 @@ function normalizeStudentGroup(raw: any) {
   }
 }
 
+function unpackResults(data: any) {
+  return Array.isArray(data) ? data : data?.results ?? []
+}
+
 function getFileExtension(url: string) {
   const name = url.split('/').pop() || ''
   const ext = name.split('.').pop()?.toLowerCase() || ''
@@ -40,6 +53,7 @@ function getFileColor(ext: string) {
 }
 
 export default function StudentMaterialsPage() {
+  const { t } = useCommonCopy()
   const searchParams = new URLSearchParams(window.location.search)
   const initialGroupId = searchParams.get('group') ? Number(searchParams.get('group')) : null
 
@@ -57,8 +71,7 @@ export default function StudentMaterialsPage() {
     : (rawGroupsData as any)?.results ?? []
   ).map(normalizeStudentGroup)
 
-  // Auto-select first group if none selected
-  const activeGroupId = selectedGroupId ?? groups[0]?.id ?? null
+  const activeGroupId = selectedGroupId
 
   // Fetch materials for the active group
   const { data: rawMaterialsData, isLoading: materialsLoading } = useQuery({
@@ -66,18 +79,26 @@ export default function StudentMaterialsPage() {
     queryFn: () => getStudentMaterials(activeGroupId!),
     enabled: !!activeGroupId,
   })
-  
+
+  const allGroupMaterialQueries = useQueries({
+    queries: groups.map((group: any) => ({
+      queryKey: ['student-materials', group.id],
+      queryFn: () => getStudentMaterials(group.id),
+      enabled: !activeGroupId && groups.length > 0,
+    })),
+  })
+
   // Handle both paginated response ({ results: [...] }) and flat array ([...])
-  const materials: Material[] = Array.isArray(rawMaterialsData) 
-    ? rawMaterialsData 
-    : (rawMaterialsData as any)?.results ?? []
+  const materials: Material[] = activeGroupId
+    ? unpackResults(rawMaterialsData)
+    : allGroupMaterialQueries.flatMap((query) => unpackResults(query.data))
 
   const filtered = materials.filter((m) =>
     m.title.toLowerCase().includes(search.toLowerCase())
     || m.description?.toLowerCase().includes(search.toLowerCase()),
   )
 
-  const isLoading = groupsLoading || materialsLoading
+  const isLoading = groupsLoading || (activeGroupId ? materialsLoading : allGroupMaterialQueries.some((query) => query.isLoading))
 
   return (
     <div className="space-y-6">
@@ -88,9 +109,9 @@ export default function StudentMaterialsPage() {
             <BookOpen className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="font-heading text-xl font-bold" style={{ color: 'var(--color-text)' }}>Materials</h1>
+            <h1 className="font-heading text-xl font-bold" style={{ color: 'var(--color-text)' }}>{t.materials}</h1>
             <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              {filtered.length} {filtered.length === 1 ? 'material' : 'materials'} available
+              {filtered.length} {filtered.length === 1 ? t.material : t.materials.toLowerCase()} {t.available}
             </p>
           </div>
         </div>
@@ -99,11 +120,12 @@ export default function StudentMaterialsPage() {
           {/* Group selector */}
           {groups.length > 1 && (
             <select
-              value={activeGroupId ?? ''}
-              onChange={(e) => setSelectedGroupId(Number(e.target.value))}
+              value={activeGroupId ?? 'all'}
+              onChange={(e) => setSelectedGroupId(e.target.value === 'all' ? null : Number(e.target.value))}
               className="input-field !py-2 !text-sm !rounded-xl"
               style={{ minWidth: 160 }}
             >
+              <option value="all">{t.allGroups}</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.id}>{g.group_name}</option>
               ))}
@@ -115,7 +137,7 @@ export default function StudentMaterialsPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--color-text-faint)' }} />
             <input
               type="text"
-              placeholder="Search materials…"
+              placeholder={t.searchMaterials}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="input-field input-with-icon !py-2 !text-sm !rounded-xl"
@@ -136,10 +158,10 @@ export default function StudentMaterialsPage() {
             <BookOpen className="h-7 w-7" />
           </div>
           <p className="mt-4 font-heading text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            No groups yet
+            {t.noGroupsYet}
           </p>
           <p className="mt-1 text-sm" style={{ color: 'var(--color-text-faint)' }}>
-            Join a group to access learning materials.
+            {t.joinGroupMaterials}
           </p>
         </div>
       ) : filtered.length === 0 ? (
@@ -148,25 +170,19 @@ export default function StudentMaterialsPage() {
             <FileText className="h-7 w-7" />
           </div>
           <p className="mt-4 font-heading text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            {search ? 'No materials match your search' : 'No materials yet'}
+            {search ? t.noMaterialsMatch : t.noMaterialsYet}
           </p>
           <p className="mt-1 text-sm" style={{ color: 'var(--color-text-faint)' }}>
-            Your teacher hasn't shared any materials for this group yet.
+            {t.teacherNoMaterials}
           </p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((material) => {
             const ext = getFileExtension(material.file || '')
-            const fileUrl = material.file 
-              ? (material.file.startsWith('http') ? material.file : `${BASE_URL}${material.file}`)
-              : null
-
-            return (
-              <div
-                key={material.id}
-                className="glass-card glass-card-hover card-shine group overflow-hidden"
-              >
+            const fileUrl = buildFileUrl(material.file)
+            const cardContent = (
+              <>
                 {/* File type indicator */}
                 <div className="flex items-center gap-3 p-5 pb-3">
                   <div
@@ -175,7 +191,7 @@ export default function StudentMaterialsPage() {
                     <FileText className="h-5 w-5 text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="truncate font-heading text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+                    <h3 className="truncate font-heading text-sm font-semibold transition group-hover:text-accent-light" style={{ color: 'var(--color-text)' }}>
                       {material.title}
                     </h3>
                     <p className="mt-0.5 text-xs" style={{ color: 'var(--color-text-faint)' }}>
@@ -192,22 +208,47 @@ export default function StudentMaterialsPage() {
                     </p>
                   </div>
                 )}
+              </>
+            )
+
+            return (
+              <div
+                key={material.id}
+                className="glass-card glass-card-hover card-shine group overflow-hidden"
+              >
+                {fileUrl ? (
+                  <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="block">
+                    {cardContent}
+                  </a>
+                ) : (
+                  <div>{cardContent}</div>
+                )}
 
                 {/* Actions */}
                 <div className="flex items-center justify-end gap-2 px-5 pb-4 pt-2">
                   {fileUrl ? (
-                    <a
-                      href={fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-primary !py-1.5 !px-4 !text-xs !rounded-lg inline-flex items-center gap-1.5"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      Download
-                    </a>
+                    <>
+                      <a
+                        href={fileUrl}
+                        download
+                        className="btn-ghost !py-1.5 !px-3 !text-xs !rounded-lg inline-flex items-center gap-1.5"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        {t.download}
+                      </a>
+                      <a
+                        href={fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-primary !py-1.5 !px-4 !text-xs !rounded-lg inline-flex items-center gap-1.5"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        {t.open}
+                      </a>
+                    </>
                   ) : (
                     <span className="rounded-lg px-3 py-1.5 text-xs" style={{ background: 'var(--input-bg)', color: 'var(--color-text-faint)' }}>
-                      No file
+                      {t.noFile}
                     </span>
                   )}
                 </div>

@@ -1,27 +1,45 @@
 import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Copy, Users, BookOpen, ClipboardCheck, FileText,
   Calendar, Plus, MoreHorizontal, Download, Search, Loader2,
-  Check, X, UserPlus,
+  Check, X, UserPlus, Edit3, Trash2, Video,
 } from 'lucide-react'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { toast } from 'sonner'
 
 import { approveStudent, getGroupDetail, getGroupStudents, getPendingStudents, rejectStudent } from '@/modules/groups/api'
-import { getMaterials } from '@/modules/materials/api'
-import { getHomeworks } from '@/modules/homeworks/api'
-import { getTests } from '@/modules/tests/api'
+import { deleteMaterial, getMaterials, updateMaterial } from '@/modules/materials/api'
+import { deleteHomework, getHomeworks, updateHomework } from '@/modules/homeworks/api'
+import { deleteTest, getTests, updateTest } from '@/modules/tests/api'
+import type { Material } from '@/modules/materials/types'
+import type { Homework } from '@/modules/homeworks/types'
+import type { CourseTest } from '@/modules/tests/types'
+import { useCommonCopy } from '@/shared/i18n'
 
 import { Modal } from '@/shared/ui/Modal'
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { MaterialForm } from '@/modules/materials/components/MaterialForm'
 import { HomeworkForm } from '@/modules/homeworks/components/HomeworkForm'
 import { TestForm } from '@/modules/tests/components/TestForm'
+import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
+
+type ContentKind = 'material' | 'homework' | 'test'
+type DeleteTarget = { kind: ContentKind; id: number; title: string }
+
+function toDateInputValue(value?: string) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().slice(0, 10)
+}
 
 export default function GroupDetailPage() {
   const queryClient = useQueryClient()
+  const { t } = useCommonCopy()
   const { groupId: groupIdStr } = useParams()
   const groupId = Number(groupIdStr)
   const [activeTab, setActiveTab] = useState('students')
@@ -29,6 +47,13 @@ export default function GroupDetailPage() {
   const [isMaterialOpen, setIsMaterialOpen] = useState(false)
   const [isHomeworkOpen, setIsHomeworkOpen] = useState(false)
   const [isTestOpen, setIsTestOpen] = useState(false)
+  const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
+  const [editingHomework, setEditingHomework] = useState<Homework | null>(null)
+  const [editingTest, setEditingTest] = useState<CourseTest | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
+  const [materialDraft, setMaterialDraft] = useState({ title: '', description: '', file: null as File | null })
+  const [homeworkDraft, setHomeworkDraft] = useState({ title: '', description: '', due_date: '', file: null as File | null })
+  const [testDraft, setTestDraft] = useState({ title: '', description: '' })
 
   const { data: group, isLoading: isLoadingGroup } = useQuery({
     queryKey: ['group', groupId],
@@ -96,6 +121,105 @@ export default function GroupDetailPage() {
     },
   })
 
+  const invalidateContent = (kind: ContentKind) => {
+    const queryKey =
+      kind === 'material'
+        ? ['group-materials', groupId]
+        : kind === 'homework'
+          ? ['group-homeworks', groupId]
+          : ['group-tests', groupId]
+
+    queryClient.invalidateQueries({ queryKey })
+    queryClient.invalidateQueries({ queryKey: ['group', groupId] })
+  }
+
+  const updateMaterialMutation = useMutation({
+    mutationFn: () => {
+      if (!editingMaterial) throw new Error('Material is not selected')
+      return updateMaterial(editingMaterial.id, materialDraft)
+    },
+    onSuccess: () => {
+      invalidateContent('material')
+      setEditingMaterial(null)
+      setMaterialDraft({ title: '', description: '', file: null })
+      toast.success(t.materialUpdated)
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || err.message || t.failedUpdateContent),
+  })
+
+  const updateHomeworkMutation = useMutation({
+    mutationFn: () => {
+      if (!editingHomework) throw new Error('Homework is not selected')
+      return updateHomework(editingHomework.id, {
+        title: homeworkDraft.title,
+        description: homeworkDraft.description,
+        due_date: homeworkDraft.due_date || undefined,
+        file: homeworkDraft.file,
+      })
+    },
+    onSuccess: () => {
+      invalidateContent('homework')
+      setEditingHomework(null)
+      setHomeworkDraft({ title: '', description: '', due_date: '', file: null })
+      toast.success(t.homeworkUpdated)
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || err.message || t.failedUpdateContent),
+  })
+
+  const updateTestMutation = useMutation({
+    mutationFn: () => {
+      if (!editingTest) throw new Error('Test is not selected')
+      return updateTest(editingTest.id, testDraft)
+    },
+    onSuccess: () => {
+      invalidateContent('test')
+      setEditingTest(null)
+      setTestDraft({ title: '', description: '' })
+      toast.success(t.testUpdated)
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || err.message || t.failedUpdateContent),
+  })
+
+  const deleteContentMutation = useMutation({
+    mutationFn: (target: DeleteTarget) => {
+      if (target.kind === 'material') return deleteMaterial(target.id)
+      if (target.kind === 'homework') return deleteHomework(target.id)
+      return deleteTest(target.id)
+    },
+    onSuccess: (_, target) => {
+      invalidateContent(target.kind)
+      toast.success(
+        target.kind === 'material'
+          ? t.materialDeleted
+          : target.kind === 'homework'
+            ? t.homeworkDeleted
+            : t.testDeleted
+      )
+      setDeleteTarget(null)
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || err.message || t.failedDeleteContent),
+  })
+
+  const openMaterialEditor = (material: Material) => {
+    setEditingMaterial(material)
+    setMaterialDraft({ title: material.title, description: material.description ?? '', file: null })
+  }
+
+  const openHomeworkEditor = (homework: Homework) => {
+    setEditingHomework(homework)
+    setHomeworkDraft({
+      title: homework.title,
+      description: homework.description ?? '',
+      due_date: toDateInputValue(homework.due_date),
+      file: null,
+    })
+  }
+
+  const openTestEditor = (test: CourseTest) => {
+    setEditingTest(test)
+    setTestDraft({ title: test.title, description: test.description ?? '' })
+  }
+
   const filteredStudents = students.filter(s => 
     s.full_name?.toLowerCase().includes(search.toLowerCase()) || 
     s.email?.toLowerCase().includes(search.toLowerCase())
@@ -127,6 +251,35 @@ export default function GroupDetailPage() {
   }
 
   const inviteCode = group.invite_code || `G-${group.id}XYZ`
+  const isUpdatingContent =
+    updateMaterialMutation.isPending || updateHomeworkMutation.isPending || updateTestMutation.isPending
+
+  const handleMaterialSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!materialDraft.title.trim()) {
+      toast.error(t.contentTitleRequired)
+      return
+    }
+    updateMaterialMutation.mutate()
+  }
+
+  const handleHomeworkSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!homeworkDraft.title.trim()) {
+      toast.error(t.contentTitleRequired)
+      return
+    }
+    updateHomeworkMutation.mutate()
+  }
+
+  const handleTestSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!testDraft.title.trim()) {
+      toast.error(t.contentTitleRequired)
+      return
+    }
+    updateTestMutation.mutate()
+  }
 
   return (
     <div className="space-y-6">
@@ -140,6 +293,10 @@ export default function GroupDetailPage() {
           description={`${group.level} level`}
           actions={
             <div className="flex gap-2">
+              <Link to={`/live/${group.id}`} className="btn-primary text-sm">
+                <Video className="h-4 w-4" />
+                {t.onlineLesson}
+              </Link>
               <button type="button" className="btn-secondary text-sm">
                 <Plus className="h-4 w-4" />
                 Add Content
@@ -342,8 +499,9 @@ export default function GroupDetailPage() {
               <div className="glass-card flex justify-center py-10 text-white/40">No materials uploaded yet.</div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {materials.map((m) => (
-                  <Link key={m.id} to={`/materials/${m.id}`} className="glass-card glass-card-hover card-shine group p-5">
+                {materials.map((m) => {
+                  const fileUrl = m.file ? buildMediaUrl(m.file) : ''
+                  const cardContent = (
                     <div className="flex items-start gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/20 to-green-400/10">
                         <BookOpen className="h-5 w-5 text-emerald-400" />
@@ -356,14 +514,46 @@ export default function GroupDetailPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="mt-3 flex justify-end">
-                      <button type="button" className="btn-ghost !py-1 !px-2 text-xs text-white/30">
-                        <Download className="h-3 w-3" />
-                        Download
-                      </button>
+                  )
+
+                  return (
+                    <div key={m.id} className="glass-card glass-card-hover card-shine group relative overflow-hidden">
+                      <div className="absolute right-3 top-3 z-10 flex gap-1">
+                        <button
+                          type="button"
+                          className="rounded-lg border border-white/[0.08] bg-white/[0.06] p-2 text-white/45 transition hover:border-accent/35 hover:text-white"
+                          title={t.editMaterial}
+                          onClick={() => openMaterialEditor(m)}
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-lg border border-red-400/10 bg-red-500/[0.06] p-2 text-red-200/60 transition hover:border-red-400/30 hover:text-red-200"
+                          title={t.deleteMaterial}
+                          onClick={() => setDeleteTarget({ kind: 'material', id: m.id, title: m.title })}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {fileUrl ? (
+                        <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="block p-5 pr-24">
+                          {cardContent}
+                        </a>
+                      ) : (
+                        <div className="p-5 pr-24">{cardContent}</div>
+                      )}
+                      {fileUrl && (
+                        <div className="flex justify-end px-5 pb-5">
+                          <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="btn-ghost !py-1 !px-2 text-xs text-white/30">
+                            <Download className="h-3 w-3" />
+                            Open file
+                          </a>
+                        </div>
+                      )}
                     </div>
-                  </Link>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -383,23 +573,43 @@ export default function GroupDetailPage() {
               <div className="glass-card flex justify-center py-10 text-white/40">No homeworks assigned yet.</div>
             ) : (
               homeworks.map((hw) => (
-                <Link key={hw.id} to={`/homeworks/${hw.id}`} className="glass-card glass-card-hover card-shine group flex items-center justify-between p-5">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-400/10">
-                      <FileText className="h-5 w-5 text-amber-400" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-white/85 group-hover:text-white">{hw.title}</h4>
-                      <div className="mt-0.5 flex items-center gap-3 text-xs text-white/30">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          Due: {new Date(hw.due_date).toLocaleDateString()}
-                        </span>
+                <div key={hw.id} className="glass-card glass-card-hover card-shine group relative">
+                  <div className="absolute right-4 top-4 z-10 flex gap-1">
+                    <button
+                      type="button"
+                      className="rounded-lg border border-white/[0.08] bg-white/[0.06] p-2 text-white/45 transition hover:border-accent/35 hover:text-white"
+                      title={t.editHomework}
+                      onClick={() => openHomeworkEditor(hw)}
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-red-400/10 bg-red-500/[0.06] p-2 text-red-200/60 transition hover:border-red-400/30 hover:text-red-200"
+                      title={t.deleteHomework}
+                      onClick={() => setDeleteTarget({ kind: 'homework', id: hw.id, title: hw.title })}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <Link to={`/homeworks/${hw.id}`} className="flex items-center justify-between p-5 pr-28">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-400/10">
+                        <FileText className="h-5 w-5 text-amber-400" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-white/85 group-hover:text-white">{hw.title}</h4>
+                        <div className="mt-0.5 flex items-center gap-3 text-xs text-white/30">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            Due: {hw.due_date ? new Date(hw.due_date).toLocaleDateString() : '-'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <ArrowLeft className="h-4 w-4 rotate-180 text-white/15 group-hover:text-white/40 transition" />
-                </Link>
+                    <ArrowLeft className="h-4 w-4 rotate-180 text-white/15 group-hover:text-white/40 transition" />
+                  </Link>
+                </div>
               ))
             )}
           </div>
@@ -418,21 +628,41 @@ export default function GroupDetailPage() {
             ) : tests.length === 0 ? (
               <div className="glass-card flex justify-center py-10 text-white/40">No tests created yet.</div>
             ) : (
-              tests.map((t) => (
-                <Link key={t.id} to={`/tests/${t.id}`} className="glass-card glass-card-hover card-shine group flex items-center justify-between p-5">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/20 to-purple-400/10">
-                      <ClipboardCheck className="h-5 w-5 text-violet-400" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-white/85 group-hover:text-white">{t.title}</h4>
-                      <div className="mt-0.5 flex items-center gap-3 text-xs text-white/30">
-                        <span>Created: {new Date(t.created_at).toLocaleDateString()}</span>
+              tests.map((test) => (
+                <div key={test.id} className="glass-card glass-card-hover card-shine group relative">
+                  <div className="absolute right-4 top-4 z-10 flex gap-1">
+                    <button
+                      type="button"
+                      className="rounded-lg border border-white/[0.08] bg-white/[0.06] p-2 text-white/45 transition hover:border-accent/35 hover:text-white"
+                      title={t.editTest}
+                      onClick={() => openTestEditor(test)}
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-red-400/10 bg-red-500/[0.06] p-2 text-red-200/60 transition hover:border-red-400/30 hover:text-red-200"
+                      title={t.deleteTest}
+                      onClick={() => setDeleteTarget({ kind: 'test', id: test.id, title: test.title })}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <Link to={`/tests/${test.id}`} className="flex items-center justify-between p-5 pr-28">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/20 to-purple-400/10">
+                        <ClipboardCheck className="h-5 w-5 text-violet-400" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-white/85 group-hover:text-white">{test.title}</h4>
+                        <div className="mt-0.5 flex items-center gap-3 text-xs text-white/30">
+                          <span>Created: {new Date(test.created_at).toLocaleDateString()}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <ArrowLeft className="h-4 w-4 rotate-180 text-white/15 group-hover:text-white/40 transition" />
-                </Link>
+                    <ArrowLeft className="h-4 w-4 rotate-180 text-white/15 group-hover:text-white/40 transition" />
+                  </Link>
+                </div>
               ))
             )}
           </div>
@@ -465,6 +695,138 @@ export default function GroupDetailPage() {
       >
         <TestForm groupId={groupId} onSuccess={() => setIsTestOpen(false)} />
       </Modal>
+
+      <Modal
+        open={!!editingMaterial}
+        onOpenChange={(open) => !open && setEditingMaterial(null)}
+        title={t.editMaterial}
+        description={t.editContentDescription}
+      >
+        <form onSubmit={handleMaterialSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/60">{t.title}</label>
+            <input
+              className="input-field"
+              value={materialDraft.title}
+              disabled={isUpdatingContent}
+              onChange={(event) => setMaterialDraft((draft) => ({ ...draft, title: event.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/60">{t.description}</label>
+            <textarea
+              className="input-field min-h-[90px]"
+              value={materialDraft.description}
+              disabled={isUpdatingContent}
+              onChange={(event) => setMaterialDraft((draft) => ({ ...draft, description: event.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/60">{t.uploadNewFile}</label>
+            <input
+              type="file"
+              className="input-field file:mr-4 file:rounded-lg file:border-0 file:bg-accent/20 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-accent-light"
+              disabled={isUpdatingContent}
+              onChange={(event) => setMaterialDraft((draft) => ({ ...draft, file: event.target.files?.[0] ?? null }))}
+            />
+          </div>
+          <button type="submit" className="btn-primary w-full" disabled={isUpdatingContent}>
+            {updateMaterialMutation.isPending ? t.saving : t.saveChanges}
+          </button>
+        </form>
+      </Modal>
+
+      <Modal
+        open={!!editingHomework}
+        onOpenChange={(open) => !open && setEditingHomework(null)}
+        title={t.editHomework}
+        description={t.editContentDescription}
+      >
+        <form onSubmit={handleHomeworkSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/60">{t.title}</label>
+            <input
+              className="input-field"
+              value={homeworkDraft.title}
+              disabled={isUpdatingContent}
+              onChange={(event) => setHomeworkDraft((draft) => ({ ...draft, title: event.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/60">{t.description}</label>
+            <textarea
+              className="input-field min-h-[90px]"
+              value={homeworkDraft.description}
+              disabled={isUpdatingContent}
+              onChange={(event) => setHomeworkDraft((draft) => ({ ...draft, description: event.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/60">{t.dueDate}</label>
+            <input
+              type="date"
+              className="input-field"
+              value={homeworkDraft.due_date}
+              disabled={isUpdatingContent}
+              onChange={(event) => setHomeworkDraft((draft) => ({ ...draft, due_date: event.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/60">{t.uploadNewFile}</label>
+            <input
+              type="file"
+              className="input-field file:mr-4 file:rounded-lg file:border-0 file:bg-accent/20 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-accent-light"
+              disabled={isUpdatingContent}
+              onChange={(event) => setHomeworkDraft((draft) => ({ ...draft, file: event.target.files?.[0] ?? null }))}
+            />
+          </div>
+          <button type="submit" className="btn-primary w-full" disabled={isUpdatingContent}>
+            {updateHomeworkMutation.isPending ? t.saving : t.saveChanges}
+          </button>
+        </form>
+      </Modal>
+
+      <Modal
+        open={!!editingTest}
+        onOpenChange={(open) => !open && setEditingTest(null)}
+        title={t.editTest}
+        description={t.editContentDescription}
+      >
+        <form onSubmit={handleTestSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/60">{t.title}</label>
+            <input
+              className="input-field"
+              value={testDraft.title}
+              disabled={isUpdatingContent}
+              onChange={(event) => setTestDraft((draft) => ({ ...draft, title: event.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/60">{t.description}</label>
+            <textarea
+              className="input-field min-h-[90px]"
+              value={testDraft.description}
+              disabled={isUpdatingContent}
+              onChange={(event) => setTestDraft((draft) => ({ ...draft, description: event.target.value }))}
+            />
+          </div>
+          <button type="submit" className="btn-primary w-full" disabled={isUpdatingContent}>
+            {updateTestMutation.isPending ? t.saving : t.saveChanges}
+          </button>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title={t.deleteContentTitle}
+        description={deleteTarget ? `${t.deleteContentDescription} "${deleteTarget.title}"` : t.deleteContentDescription}
+        confirmLabel={deleteContentMutation.isPending ? t.saving : t.delete}
+        cancelLabel={t.cancel}
+        variant="danger"
+        onConfirm={() => deleteTarget && deleteContentMutation.mutate(deleteTarget)}
+      />
     </div>
   )
 }

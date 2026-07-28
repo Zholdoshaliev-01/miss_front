@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Play,
 } from 'lucide-react'
+import { academyConfig } from '@/core/config/academy'
 
 /* ════════════════════════════════════
    FEATURES DATA
@@ -21,72 +22,72 @@ import {
 const features = [
   {
     icon: Users,
-    title: 'Group Management',
-    desc: 'Create and manage student groups with invite codes. Track enrollment and organize your classes effortlessly.',
+    title: 'Private Study Groups',
+    desc: 'Students join the teacher\'s groups with invite links and see only the classes they belong to.',
     color: 'from-blue-500 to-cyan-400',
     glow: 'rgba(59,130,246,0.15)',
   },
   {
     icon: ClipboardCheck,
-    title: 'Smart Tests',
-    desc: 'Build interactive tests with auto-grading. Create questions, set points, and review results instantly.',
+    title: 'Teacher-made Tests',
+    desc: 'Take tests created by your teacher and see progress through real classroom results.',
     color: 'from-violet-500 to-purple-400',
     glow: 'rgba(139,92,246,0.15)',
   },
   {
     icon: BookOpen,
-    title: 'Homework Tracking',
-    desc: 'Assign homework with deadlines, collect submissions, and leave reviews — all in one workflow.',
+    title: 'Homework Submissions',
+    desc: 'Receive assignments, download files, upload answers, and keep everything in one place.',
     color: 'from-emerald-500 to-green-400',
     glow: 'rgba(16,185,129,0.15)',
   },
   {
     icon: GraduationCap,
-    title: 'Materials Hub',
-    desc: 'Upload and share learning materials. Students access everything they need from a single dashboard.',
+    title: 'Learning Materials',
+    desc: 'Access books, images, PDFs, and resources shared directly by the teacher.',
     color: 'from-amber-500 to-orange-400',
     glow: 'rgba(245,158,11,0.15)',
   },
   {
     icon: BarChart3,
-    title: 'Student Ratings',
-    desc: 'Track performance with detailed ratings. Identify top students and those that need extra support.',
+    title: 'Group Ratings',
+    desc: 'Follow your rating inside your group and understand your progress clearly.',
     color: 'from-rose-500 to-pink-400',
     glow: 'rgba(244,63,94,0.15)',
   },
   {
     icon: Layout,
-    title: 'Real-time Dashboard',
-    desc: 'Get a bird\'s-eye view of your entire workspace — groups, tests, submissions, and student activity.',
+    title: 'Student Dashboard',
+    desc: 'Materials, homework, tests, chat, and progress are organized in one clean dashboard.',
     color: 'from-indigo-500 to-blue-400',
     glow: 'rgba(99,102,241,0.15)',
   },
 ]
 
 const stats = [
-  { value: '10K+', label: 'Active Students' },
-  { value: '500+', label: 'Teachers' },
-  { value: '2K+', label: 'Courses' },
-  { value: '98%', label: 'Satisfaction' },
+  { value: '1', label: 'Teacher' },
+  { value: '24/7', label: 'Access' },
+  { value: '100 MB', label: 'File uploads' },
+  { value: 'All-in-one', label: 'Classroom' },
 ]
 
 const steps = [
   {
     num: '01',
-    title: 'Create Your Space',
-    desc: 'Set up your teacher account and create your first group in seconds.',
+    title: 'Join Your Group',
+    desc: 'Use your invite link from the teacher and request access to the right group.',
     icon: Sparkles,
   },
   {
     num: '02',
-    title: 'Build & Share',
-    desc: 'Upload materials, create tests, and assign homework to your groups.',
+    title: 'Study & Submit',
+    desc: 'Open materials, complete homework, upload files, and take tests from your dashboard.',
     icon: Zap,
   },
   {
     num: '03',
-    title: 'Track & Grow',
-    desc: 'Monitor progress, review submissions, and help students succeed.',
+    title: 'Track Progress',
+    desc: 'See your homework status, test progress, and rating inside the teacher\'s classroom.',
     icon: BarChart3,
   },
 ]
@@ -94,20 +95,20 @@ const steps = [
 const testimonials = [
   {
     name: 'Aigerim K.',
-    role: 'University Teacher',
-    text: 'EduFlow transformed how I manage my courses. The test builder alone saved me hours every week.',
+    role: 'Student',
+    text: 'Everything for class is finally in one place: homework, materials, tests, and group progress.',
     rating: 5,
   },
   {
     name: 'Daulet M.',
     role: 'Computer Science Student',
-    text: 'Finally, a platform that doesn\'t feel outdated. The interface is clean and everything just works.',
+    text: 'I can open homework, see instructions, download files, and submit my answer without confusion.',
     rating: 5,
   },
   {
     name: 'Nursultan T.',
-    role: 'Department Head',
-    text: 'We rolled out EduFlow across three departments. The analytics alone made it worth the switch.',
+    role: 'Student',
+    text: 'The rating page makes group progress easy to understand, especially after tests and homework.',
     rating: 5,
   },
 ]
@@ -130,7 +131,7 @@ export default function LandingPage() {
                 <GraduationCap className="h-5 w-5 text-white" />
               </div>
               <span className="font-heading text-lg font-bold tracking-tight text-white">
-                Edu<span className="text-accent-light">Flow</span>
+                {academyConfig.academyName}
               </span>
             </Link>
             <div className="hidden items-center gap-6 md:flex">
@@ -141,7 +142,7 @@ export default function LandingPage() {
             <div className="flex items-center gap-3">
               <Link to="/login" className="btn-ghost text-sm">Sign in</Link>
               <Link to="/register" className="btn-primary !py-2 !px-4 text-sm">
-                Get Started
+                Join Class
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
@@ -159,26 +160,25 @@ export default function LandingPage() {
           {/* Badge */}
           <div className="animate-fade-in mb-8 inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/[0.08] px-4 py-1.5">
             <Sparkles className="h-4 w-4 text-accent-light" />
-            <span className="text-sm font-medium text-accent-light">Modern LMS Platform</span>
+            <span className="text-sm font-medium text-accent-light">{academyConfig.teacherName}'s online classroom</span>
           </div>
 
           {/* Main heading */}
           <h1 className="animate-slide-up font-heading text-4xl font-bold leading-[1.1] tracking-tight sm:text-6xl lg:text-7xl">
-            <span className="text-white">Teaching made</span>
+            <span className="text-white">{academyConfig.academyName}</span>
             <br />
-            <span className="gradient-text">beautifully simple</span>
+            <span className="gradient-text">for focused students</span>
           </h1>
 
           {/* Subtitle */}
           <p className="animate-slide-up stagger-1 mx-auto mt-6 max-w-2xl text-lg text-white/50 sm:text-xl" style={{ opacity: 0 }}>
-            Manage groups, create tests, track homework — all from one sleek dashboard.
-            Built for modern educators who value their time.
+            {academyConfig.subjectLine}
           </p>
 
           {/* CTA buttons */}
           <div className="animate-slide-up stagger-2 mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row" style={{ opacity: 0 }}>
             <Link to="/register" className="btn-primary !px-8 !py-3.5 text-base">
-              Start for Free
+              Create Student Account
               <ArrowRight className="h-5 w-5" />
             </Link>
             <a href="#features" className="btn-secondary !px-8 !py-3.5 text-base">
@@ -200,7 +200,7 @@ export default function LandingPage() {
               ))}
             </div>
             <p className="text-sm text-white/40">
-              Trusted by <span className="font-semibold text-white/70">500+</span> teachers worldwide
+              Private classroom by <span className="font-semibold text-white/70">{academyConfig.teacherName}</span>
             </p>
           </div>
         </div>
@@ -229,10 +229,10 @@ export default function LandingPage() {
               <span className="text-xs font-semibold uppercase tracking-wider text-accent-light">Features</span>
             </div>
             <h2 className="mt-5 font-heading text-3xl font-bold text-white sm:text-4xl">
-              Everything you need to <span className="gradient-text">teach effectively</span>
+              Everything students need to <span className="gradient-text">learn clearly</span>
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-white/45">
-              A complete toolkit for modern education — from content delivery to performance analytics.
+              One teacher, organized groups, clear tasks, useful materials, tests, and progress tracking.
             </p>
           </div>
 
@@ -270,7 +270,7 @@ export default function LandingPage() {
               <span className="text-xs font-semibold uppercase tracking-wider text-accent-light">How it works</span>
             </div>
             <h2 className="mt-5 font-heading text-3xl font-bold text-white sm:text-4xl">
-              Up and running in <span className="gradient-text">minutes</span>
+              Start learning in <span className="gradient-text">three steps</span>
             </h2>
           </div>
 
@@ -299,7 +299,7 @@ export default function LandingPage() {
               <span className="text-xs font-semibold uppercase tracking-wider text-accent-light">Testimonials</span>
             </div>
             <h2 className="mt-5 font-heading text-3xl font-bold text-white sm:text-4xl">
-              Loved by <span className="gradient-text">educators</span>
+              Built for <span className="gradient-text">this classroom</span>
             </h2>
           </div>
 
@@ -335,14 +335,14 @@ export default function LandingPage() {
             <div className="pointer-events-none absolute -top-24 left-1/2 h-48 w-96 -translate-x-1/2 rounded-full bg-accent/20 blur-[100px]" />
 
             <h2 className="relative font-heading text-3xl font-bold text-white sm:text-4xl">
-              Ready to transform your teaching?
+              Ready to join {academyConfig.teacherName}'s class?
             </h2>
             <p className="relative mx-auto mt-4 max-w-lg text-white/50">
-              Join hundreds of educators already using EduFlow to create better learning experiences.
+              Create a student account, join your group with an invite link, and keep all your learning work in one place.
             </p>
             <div className="relative mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link to="/register" className="btn-primary !px-10 !py-3.5 text-base">
-                Get Started Free
+                Join the Classroom
                 <ChevronRight className="h-5 w-5" />
               </Link>
               <Link to="/login" className="btn-ghost text-base text-white/60">
@@ -362,7 +362,7 @@ export default function LandingPage() {
                 <GraduationCap className="h-4 w-4 text-white" />
               </div>
               <span className="font-heading text-base font-bold text-white/80">
-                Edu<span className="text-accent-light">Flow</span>
+                {academyConfig.academyName}
               </span>
             </div>
             <div className="flex items-center gap-6 text-sm text-white/35">
@@ -371,7 +371,7 @@ export default function LandingPage() {
               <a href="#testimonials" className="transition hover:text-white/60">Reviews</a>
               <Link to="/login" className="transition hover:text-white/60">Sign in</Link>
             </div>
-            <p className="text-xs text-white/25">© 2026 EduFlow. All rights reserved.</p>
+            <p className="text-xs text-white/25">{academyConfig.copyright}</p>
           </div>
         </div>
       </footer>

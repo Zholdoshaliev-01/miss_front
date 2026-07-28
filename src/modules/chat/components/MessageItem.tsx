@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { editMessage, deleteMessage } from '../api'
 import type { MessageOut } from '../types'
 import CustomAudioPlayer from './CustomAudioPlayer'
+import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
 
 /** Attachment data for rendering files/images in messages */
 export interface MessageAttachment {
@@ -38,6 +39,10 @@ function formatFileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function getAvatarUrl(path?: string | null) {
+  return path ? buildMediaUrl(path) : ''
 }
 
 function MessageItemInner({
@@ -137,16 +142,24 @@ function MessageItemInner({
         {!isOwn && (
           <div style={{ width: 32, flexShrink: 0 }}>
             {isFirstInGroup ? (
-              <div
-                className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white"
-                style={{
-                  background: message.is_teacher
-                    ? 'linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))'
-                    : 'linear-gradient(135deg, #ec4899, #8b5cf6)',
-                }}
-              >
-                {message.sender_name?.[0]?.toUpperCase() ?? '?'}
-              </div>
+              message.sender_avatar ? (
+                <img
+                  src={getAvatarUrl(message.sender_avatar)}
+                  alt={message.sender_name || 'User'}
+                  className="h-8 w-8 rounded-full object-cover"
+                />
+              ) : (
+                <div
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white"
+                  style={{
+                    background: message.is_teacher
+                      ? 'linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))'
+                      : 'linear-gradient(135deg, #ec4899, #8b5cf6)',
+                  }}
+                >
+                  {message.sender_name?.[0]?.toUpperCase() ?? '?'}
+                </div>
+              )
             ) : null}
           </div>
         )}
@@ -320,6 +333,9 @@ const MessageItem = memo(MessageItemInner, (prev, next) => {
   return (
     prev.message.id === next.message.id &&
     prev.message.text === next.message.text &&
+    prev.message.sender_name === next.message.sender_name &&
+    prev.message.sender_avatar === next.message.sender_avatar &&
+    prev.message.is_teacher === next.message.is_teacher &&
     prev.message.is_deleted === next.message.is_deleted &&
     prev.message.edited_at === next.message.edited_at &&
     prev.isOwn === next.isOwn &&

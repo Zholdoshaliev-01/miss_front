@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { registerRequest } from '../api'
 import { RegisterForm } from '../components/RegisterForm'
 import type { RegisterPayload } from '../types'
+import { academyConfig } from '@/core/config/academy'
 import axios from 'axios'
 
 function getErrorMessage(err: unknown): string {
@@ -38,10 +39,10 @@ export default function RegisterPage() {
     <div className="animate-fade-in">
       <div className="mb-8 text-center lg:text-left">
         <h1 className="font-heading text-3xl font-bold tracking-tight text-white">
-          Create account
+          Create student account
         </h1>
         <p className="mt-2 text-sm text-white/40">
-          Join EduFlow as a student
+          Join {academyConfig.academyName} and request access to your group.
         </p>
       </div>
 

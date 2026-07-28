@@ -26,6 +26,7 @@ import TestDetailPage from '@/modules/tests/views/TestDetailPage'
 import TestResultsPage from '@/modules/tests/views/TestResultsPage'
 import StudentRatingPage from '@/modules/ratings/views/StudentRatingPage'
 import SettingsPage from '@/modules/settings/views/SettingsPage'
+import LiveLessonPage from '@/modules/live/views/LiveLessonPage'
 import { StudentLayout } from '@/layouts/StudentLayout'
 import { DashboardPage, PrivateRoute, RootRedirect, StudentRoute } from './guards'
 
@@ -69,6 +70,7 @@ export const router = createBrowserRouter([
           { path: 'tests/:id', element: <TestDetailPage /> },
           { path: 'tests/:id/builder', element: <TestBuilderPage /> },
           { path: 'tests/:id/results', element: <TestResultsPage /> },
+          { path: 'live/:groupId', element: <LiveLessonPage /> },
           { path: 'chat', element: <ChatPage /> },
           { path: 'ratings', element: <StudentRatingPage /> },
           { path: 'profile', element: <ProfilePage /> },
@@ -91,6 +93,7 @@ export const router = createBrowserRouter([
           { path: 'student/tests', element: <StudentTestsPage /> },
           { path: 'student/homework/:id', element: <HomeworkSubmitPage /> },
           { path: 'student/test/:id', element: <TestPage /> },
+          { path: 'student/live/:groupId', element: <LiveLessonPage /> },
           { path: 'student/chat', element: <ChatPage /> },
           { path: 'student/profile', element: <ProfilePage /> },
           { path: 'student/settings', element: <SettingsPage /> },
