@@ -9,7 +9,7 @@ import { createReview, getHomeworkAnswers, getHomeworkDetail, updateReview } fro
 import type { HomeworkAnswer, Review } from '@/modules/homeworks/types'
 import { useCommonCopy } from '@/shared/i18n'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space'
 
 function buildFileUrl(file?: string | null) {
   if (!file) return null

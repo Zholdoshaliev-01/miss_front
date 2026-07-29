@@ -1,7 +1,7 @@
 import axios, { type AxiosInstance } from 'axios'
 import { useAuthStore } from '@/modules/auth/store/authStore'
 
-const baseURL = import.meta.env.VITE_API_BASE_URL
+const baseURL = import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space'
 
 export const api = axios.create({
   baseURL,

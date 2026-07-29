@@ -114,7 +114,7 @@ function MessageItemInner({
     || currentAttachment?.file_url
     || (currentAttachment as any)?.url
     || ''
-  const CHAT_BASE = import.meta.env.VITE_CHAT_API_URL || ''
+  const CHAT_BASE = import.meta.env.VITE_CHAT_API_URL || 'https://chat.kassi.space'
   const imgSrc = rawUrl && rawUrl.startsWith('/') ? `${CHAT_BASE}${rawUrl}` : rawUrl
 
   if (message.is_deleted) {

@@ -15,8 +15,8 @@ import type {
   ChatUserSummary,
 } from './types'
 
-const CHAT_BASE_URL = import.meta.env.VITE_CHAT_API_URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+const CHAT_BASE_URL = import.meta.env.VITE_CHAT_API_URL || 'https://chat.kassi.space'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space'
 let refreshPromise: Promise<string | null> | null = null
 
 export const chatApi = axios.create({

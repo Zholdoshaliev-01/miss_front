@@ -6,7 +6,7 @@ import type { Group } from '@/modules/groups/types'
 import type { Material } from '@/modules/materials/types'
 import { useCommonCopy } from '@/shared/i18n'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space'
 
 function buildFileUrl(file?: string | null) {
   if (!file) return null

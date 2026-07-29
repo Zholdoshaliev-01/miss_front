@@ -5,7 +5,7 @@ import { getStudentGroups } from '@/modules/student/api'
 import type { Group } from '@/modules/groups/types'
 import { useCommonCopy } from '@/shared/i18n'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space'
 
 type StudentGroupCard = {
   id: number

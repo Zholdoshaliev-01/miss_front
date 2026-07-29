@@ -5,7 +5,7 @@ import { PageHeader } from '@/shared/ui/PageHeader'
 import { getMaterialDetail } from '@/modules/materials/api'
 import { useCommonCopy } from '@/shared/i18n'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space'
 
 function buildFileUrl(file?: string | null) {
   if (!file) return null
