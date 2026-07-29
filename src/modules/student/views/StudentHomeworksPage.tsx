@@ -3,7 +3,14 @@ import { BookOpen, CalendarDays, FileText, Loader2, Search, Upload } from 'lucid
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getStudentGroups, getStudentHomeworks } from '@/modules/student/api'
+import type { StudentHomework } from '@/modules/student/api'
+import type { Group } from '@/modules/groups/types'
 import { useCommonCopy } from '@/shared/i18n'
+
+type StudentGroupOption = {
+  id: number
+  group_name: string
+}
 
 function formatDate(dateStr: string | undefined, fallback: string) {
   if (!dateStr) return fallback
@@ -16,14 +23,17 @@ function formatDate(dateStr: string | undefined, fallback: string) {
   })
 }
 
-function normalizeStudentGroup(raw: any) {
+function normalizeStudentGroup(raw: Group & {
+  group_id?: number
+  name?: string
+}): StudentGroupOption {
   return {
     id: raw.group_id ?? raw.id,
     group_name: raw.group_name ?? raw.name ?? 'Untitled group',
   }
 }
 
-function unpackResults(data: any) {
+function unpackResults<T>(data: T[] | { results?: T[] } | undefined): T[] {
   return Array.isArray(data) ? data : data?.results ?? []
 }
 
@@ -40,7 +50,7 @@ export default function StudentHomeworksPage() {
     queryFn: () => getStudentGroups(),
   })
 
-  const groups = (Array.isArray(rawGroupsData)
+  const groups: StudentGroupOption[] = (Array.isArray(rawGroupsData)
     ? rawGroupsData
     : (rawGroupsData as any)?.results ?? []
   ).map(normalizeStudentGroup)
@@ -54,7 +64,7 @@ export default function StudentHomeworksPage() {
   })
 
   const allGroupHomeworkQueries = useQueries({
-    queries: groups.map((group: any) => ({
+    queries: groups.map((group) => ({
       queryKey: ['student-homeworks', group.id],
       queryFn: () => getStudentHomeworks(group.id),
       enabled: !activeGroupId && groups.length > 0,
@@ -62,10 +72,10 @@ export default function StudentHomeworksPage() {
   })
 
   const homeworks = activeGroupId
-    ? unpackResults(rawHomeworksData)
-    : allGroupHomeworkQueries.flatMap((query) => unpackResults(query.data))
+    ? unpackResults<StudentHomework>(rawHomeworksData)
+    : allGroupHomeworkQueries.flatMap((query) => unpackResults<StudentHomework>(query.data))
 
-  const filtered = homeworks.filter((homework: any) =>
+  const filtered = homeworks.filter((homework) =>
     homework.title.toLowerCase().includes(search.toLowerCase())
     || homework.description?.toLowerCase().includes(search.toLowerCase()),
   )
@@ -95,7 +105,7 @@ export default function StudentHomeworksPage() {
               className="input-field !py-2 !text-sm !rounded-xl"
             >
               <option value="all">{t.allGroups}</option>
-              {groups.map((group: any) => (
+              {groups.map((group) => (
                 <option key={group.id} value={group.id}>{group.group_name}</option>
               ))}
             </select>
@@ -134,7 +144,7 @@ export default function StudentHomeworksPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((homework: any) => (
+          {filtered.map((homework) => (
             <div key={homework.id} className="glass-card glass-card-hover card-shine p-5">
               <div className="flex items-start gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-400 shadow-lg">

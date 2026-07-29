@@ -3,7 +3,14 @@ import { ClipboardCheck, HelpCircle, Loader2, Play, Search, Users } from 'lucide
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getStudentGroups, getStudentTests } from '@/modules/student/api'
+import type { StudentTest } from '@/modules/student/api'
+import type { Group } from '@/modules/groups/types'
 import { useCommonCopy } from '@/shared/i18n'
+
+type StudentGroupOption = {
+  id: number
+  group_name: string
+}
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return ''
@@ -16,14 +23,17 @@ function formatDate(dateStr?: string) {
   })
 }
 
-function normalizeStudentGroup(raw: any) {
+function normalizeStudentGroup(raw: Group & {
+  group_id?: number
+  name?: string
+}): StudentGroupOption {
   return {
     id: raw.group_id ?? raw.id,
     group_name: raw.group_name ?? raw.name ?? 'Untitled group',
   }
 }
 
-function unpackResults(data: any) {
+function unpackResults<T>(data: T[] | { results?: T[] } | undefined): T[] {
   return Array.isArray(data) ? data : data?.results ?? []
 }
 
@@ -40,7 +50,7 @@ export default function StudentTestsPage() {
     queryFn: () => getStudentGroups(),
   })
 
-  const groups = (Array.isArray(rawGroupsData)
+  const groups: StudentGroupOption[] = (Array.isArray(rawGroupsData)
     ? rawGroupsData
     : (rawGroupsData as any)?.results ?? []
   ).map(normalizeStudentGroup)
@@ -54,7 +64,7 @@ export default function StudentTestsPage() {
   })
 
   const allGroupTestQueries = useQueries({
-    queries: groups.map((group: any) => ({
+    queries: groups.map((group) => ({
       queryKey: ['student-tests', group.id],
       queryFn: () => getStudentTests(group.id),
       enabled: !activeGroupId && groups.length > 0,
@@ -62,10 +72,10 @@ export default function StudentTestsPage() {
   })
 
   const tests = activeGroupId
-    ? unpackResults(rawTestsData)
-    : allGroupTestQueries.flatMap((query) => unpackResults(query.data))
+    ? unpackResults<StudentTest>(rawTestsData)
+    : allGroupTestQueries.flatMap((query) => unpackResults<StudentTest>(query.data))
 
-  const filtered = tests.filter((test: any) =>
+  const filtered = tests.filter((test) =>
     test.title.toLowerCase().includes(search.toLowerCase()),
   )
 
@@ -94,7 +104,7 @@ export default function StudentTestsPage() {
               className="input-field !py-2 !text-sm !rounded-xl"
             >
               <option value="all">{t.allGroups}</option>
-              {groups.map((group: any) => (
+              {groups.map((group) => (
                 <option key={group.id} value={group.id}>{group.group_name}</option>
               ))}
             </select>
@@ -133,7 +143,7 @@ export default function StudentTestsPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((test: any) => (
+          {filtered.map((test) => (
             <div key={test.id} className="glass-card glass-card-hover card-shine p-5">
               <div className="flex items-start gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-400 shadow-lg">

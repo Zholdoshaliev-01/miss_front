@@ -2,6 +2,7 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import { BookOpen, Download, ExternalLink, FileText, Loader2, Search } from 'lucide-react'
 import { useState } from 'react'
 import { getStudentGroups, getStudentMaterials } from '@/modules/student/api'
+import type { Group } from '@/modules/groups/types'
 import type { Material } from '@/modules/materials/types'
 import { useCommonCopy } from '@/shared/i18n'
 
@@ -26,14 +27,22 @@ function formatDate(dateStr?: string) {
   })
 }
 
-function normalizeStudentGroup(raw: any) {
+type StudentGroupOption = {
+  id: number
+  group_name: string
+}
+
+function normalizeStudentGroup(raw: Group & {
+  group_id?: number
+  name?: string
+}): StudentGroupOption {
   return {
     id: raw.group_id ?? raw.id,
     group_name: raw.group_name ?? raw.name ?? 'Untitled group',
   }
 }
 
-function unpackResults(data: any) {
+function unpackResults<T>(data: T[] | { results?: T[] } | undefined): T[] {
   return Array.isArray(data) ? data : data?.results ?? []
 }
 
@@ -66,8 +75,8 @@ export default function StudentMaterialsPage() {
     queryFn: () => getStudentGroups(),
   })
   
-  const groups = (Array.isArray(rawGroupsData) 
-    ? rawGroupsData 
+  const groups: StudentGroupOption[] = (Array.isArray(rawGroupsData)
+    ? rawGroupsData
     : (rawGroupsData as any)?.results ?? []
   ).map(normalizeStudentGroup)
 
@@ -81,7 +90,7 @@ export default function StudentMaterialsPage() {
   })
 
   const allGroupMaterialQueries = useQueries({
-    queries: groups.map((group: any) => ({
+    queries: groups.map((group) => ({
       queryKey: ['student-materials', group.id],
       queryFn: () => getStudentMaterials(group.id),
       enabled: !activeGroupId && groups.length > 0,
@@ -90,8 +99,8 @@ export default function StudentMaterialsPage() {
 
   // Handle both paginated response ({ results: [...] }) and flat array ([...])
   const materials: Material[] = activeGroupId
-    ? unpackResults(rawMaterialsData)
-    : allGroupMaterialQueries.flatMap((query) => unpackResults(query.data))
+    ? unpackResults<Material>(rawMaterialsData)
+    : allGroupMaterialQueries.flatMap((query) => unpackResults<Material>(query.data))
 
   const filtered = materials.filter((m) =>
     m.title.toLowerCase().includes(search.toLowerCase())

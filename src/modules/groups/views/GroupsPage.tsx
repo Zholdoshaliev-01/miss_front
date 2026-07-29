@@ -122,10 +122,9 @@ export default function GroupsPage() {
 
   const createGroupMut = useMutation({
     mutationFn: async () => {
-      const group = await createGroup({ group_name: trimmedGroupName, level: newGroupLevel })
-      return group
+      return createGroup({ group_name: trimmedGroupName, level: newGroupLevel })
     },
-    onSuccess: (group) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['groups'] })
       toast.success(t.groupCreated)
       setShowModal(false)

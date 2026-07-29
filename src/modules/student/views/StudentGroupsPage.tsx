@@ -2,9 +2,22 @@ import { useQuery } from '@tanstack/react-query'
 import { GraduationCap, Users, Hash, Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { getStudentGroups } from '@/modules/student/api'
+import type { Group } from '@/modules/groups/types'
 import { useCommonCopy } from '@/shared/i18n'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+
+type StudentGroupCard = {
+  id: number
+  membershipId: number
+  group_name: string
+  group_image: string | null
+  level: string
+  joined_at?: string
+  materials_count: number | string
+  homeworks_count: number | string
+  tests_count: number | string
+}
 
 function formatDate(dateStr: string | undefined, fallback: string) {
   if (!dateStr) return fallback
@@ -17,7 +30,12 @@ function formatDate(dateStr: string | undefined, fallback: string) {
   })
 }
 
-function normalizeStudentGroup(raw: any) {
+function normalizeStudentGroup(raw: Group & {
+  group_id?: number
+  name?: string
+  group_level?: string
+  joined_at?: string
+}): StudentGroupCard {
   return {
     id: raw.group_id ?? raw.id,
     membershipId: raw.id,
@@ -39,8 +57,8 @@ export default function StudentGroupsPage() {
   })
 
   // Handle both paginated response ({ results: [...] }) and flat array ([...])
-  const groups = (Array.isArray(rawGroupsData) 
-    ? rawGroupsData 
+  const groups: StudentGroupCard[] = (Array.isArray(rawGroupsData)
+    ? rawGroupsData
     : (rawGroupsData as any)?.results ?? []
   ).map(normalizeStudentGroup)
 

@@ -109,7 +109,7 @@ export default function ChatPage() {
 
   /* ─── Queries ─── */
 
-  const { data: serverMessages = [], isLoading: messagesLoading } = useQuery({
+  const { data: serverMessages = [], isLoading: messagesLoading } = useQuery<MessageOut[]>({
     queryKey: ['chat-messages', activeRoom?.group_id],
     queryFn: () => getMessages(activeRoom!.group_id),
     enabled: !!activeRoom,
@@ -118,7 +118,7 @@ export default function ChatPage() {
     refetchIntervalInBackground: false,
   })
 
-  const { data: members = [] } = useQuery({
+  const { data: members = [] } = useQuery<MemberOut[]>({
     queryKey: ['chat-members', activeRoom?.group_id],
     queryFn: () => getMembers(activeRoom!.group_id),
     enabled: !!activeRoom,
@@ -134,7 +134,7 @@ export default function ChatPage() {
     return [...new Set(ids.filter((id) => Number.isFinite(id) && id > 0))].sort((a, b) => a - b)
   }, [serverMessages, optimisticMessages, members, authUserId])
 
-  const { data: chatUsers = [] } = useQuery({
+  const { data: chatUsers = [] } = useQuery<ChatUserSummary[]>({
     queryKey: ['chat-users', chatUserIds.join(',')],
     queryFn: () => getUsersBulk(chatUserIds),
     enabled: chatUserIds.length > 0,
