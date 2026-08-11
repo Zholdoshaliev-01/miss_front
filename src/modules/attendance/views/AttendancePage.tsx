@@ -216,9 +216,10 @@ function cellKey(date: string, studentId: number) {
 }
 
 function normalizeRecord(record: AttendanceRecord) {
-  const raw = record as AttendanceRecord & { student?: number | { id?: number }; score?: number | string | null }
+  const raw = record as AttendanceRecord & { student?: number | { id?: number } }
   const studentId = raw.student_id ?? (typeof raw.student === 'number' ? raw.student : raw.student?.id)
-  const score = raw.score === undefined || raw.score === null || raw.score === '' ? null : Number(raw.score)
+  const rawScore = (record as { score?: unknown }).score
+  const score = rawScore === undefined || rawScore === null || rawScore === '' ? null : Number(rawScore)
   return studentId && raw.date
     ? { ...record, student_id: studentId, score: Number.isFinite(score) ? score : null, note: record.note ?? '' }
     : null
