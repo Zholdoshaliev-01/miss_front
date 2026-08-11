@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, BookOpen, ClipboardCheck, FileText, GraduationCap, Loader2, Star, Trophy, UserRound, Video } from 'lucide-react'
+import { ArrowLeft, BookOpen, CalendarCheck, ClipboardCheck, FileText, GraduationCap, Loader2, Star, Trophy, UserRound, Video } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { getStudentGlobalLeaderboard, getStudentGroupLeaderboard, getStudentGroups } from '@/modules/student/api'
 import { useAuthStore } from '@/modules/auth/store/authStore'
 import { useCommonCopy } from '@/shared/i18n'
 import axios from 'axios'
+import { StudentAttendancePanel } from '@/modules/attendance/components/StudentAttendancePanel'
 
 function normalizeStudentGroup(raw: any) {
   return {
@@ -41,7 +42,7 @@ function getLeaderboardErrorMessage(error: unknown, fallback: string) {
 }
 
 export default function StudentGroupDetailPage() {
-  const { t } = useCommonCopy()
+  const { t, language } = useCommonCopy()
   const { groupId } = useParams()
   const numericGroupId = Number(groupId)
   const user = useAuthStore((state) => state.user)
@@ -133,7 +134,7 @@ export default function StudentGroupDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <Link to={`/student/live/${group.id}`} className="glass-card glass-card-hover p-5">
           <Video className="h-7 w-7 text-cyan-300" />
           <h2 className="mt-4 font-heading text-lg font-semibold text-white">{t.onlineLesson}</h2>
@@ -154,6 +155,13 @@ export default function StudentGroupDetailPage() {
           <h2 className="mt-4 font-heading text-lg font-semibold text-white">{t.tests}</h2>
           <p className="mt-1 text-sm text-white/45">{Number(group.tests_count) || 0} {t.available}</p>
         </Link>
+        <a href="#attendance" className="glass-card glass-card-hover p-5">
+          <CalendarCheck className="h-7 w-7 text-cyan-300" />
+          <h2 className="mt-4 font-heading text-lg font-semibold text-white">{t.attendance}</h2>
+          <p className="mt-1 text-sm text-white/45">
+            {language === 'ru' ? 'Мои отметки' : language === 'ky' ? 'Менин белгилерим' : 'My records'}
+          </p>
+        </a>
         <a href="#group-rating" className="glass-card glass-card-hover p-5">
           <Trophy className="h-7 w-7 text-yellow-400" />
           <h2 className="mt-4 font-heading text-lg font-semibold text-white">{t.rating}</h2>
@@ -162,6 +170,8 @@ export default function StudentGroupDetailPage() {
           </p>
         </a>
       </div>
+
+      <StudentAttendancePanel groupId={group.id} />
 
       <div id="group-rating" className="glass-card overflow-hidden">
         <div className="flex flex-col gap-2 border-b border-white/[0.06] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">

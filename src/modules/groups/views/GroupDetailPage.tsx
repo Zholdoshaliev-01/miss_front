@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Copy, Users, BookOpen, ClipboardCheck, FileText,
   Calendar, Plus, MoreHorizontal, Download, Search, Loader2,
-  Check, X, UserPlus, Edit3, Trash2, Video,
+  Check, X, UserPlus, Edit3, Trash2, Video, CalendarCheck,
 } from 'lucide-react'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
@@ -26,6 +26,7 @@ import { MaterialForm } from '@/modules/materials/components/MaterialForm'
 import { HomeworkForm } from '@/modules/homeworks/components/HomeworkForm'
 import { TestForm } from '@/modules/tests/components/TestForm'
 import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
+import AttendancePage from '@/modules/attendance/views/AttendancePage'
 
 type ContentKind = 'material' | 'homework' | 'test'
 type DeleteTarget = { kind: ContentKind; id: number; title: string }
@@ -231,6 +232,7 @@ export default function GroupDetailPage() {
     { id: 'materials', label: 'Materials', icon: BookOpen, count: Number(group?.materials_count) || materialsData?.count || 0 },
     { id: 'homeworks', label: 'Homework', icon: FileText, count: Number(group?.homeworks_count) || homeworksData?.count || 0 },
     { id: 'tests', label: 'Tests', icon: ClipboardCheck, count: Number(group?.tests_count) || testsData?.count || 0 },
+    { id: 'attendance', label: t.attendance, icon: CalendarCheck },
   ]
 
   if (isLoadingGroup) {
@@ -347,17 +349,19 @@ export default function GroupDetailPage() {
           >
             <tab.icon className="h-4 w-4" />
             {tab.label}
-            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+            {tab.count !== undefined && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
               activeTab === tab.id ? 'bg-accent/20 text-accent-light' : 'bg-white/[0.06] text-white/30'
             }`}>
               {tab.count}
-            </span>
+            </span>}
           </button>
         ))}
       </div>
 
       {/* Tab Content */}
       <div className="min-h-[300px]">
+        {activeTab === 'attendance' && <AttendancePage groupId={groupId} />}
+
         {activeTab === 'students' && (
           <div className="space-y-4">
             {/* Search */}
