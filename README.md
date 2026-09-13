@@ -1,6 +1,6 @@
-# Kunduz Study Hub
+# Miss Kunduz Team
 
-Kunduz Study Hub is a modern learning management frontend for one teacher and their students. It includes groups, materials, homework, tests, ratings, chat, notifications, profile settings, and online lessons.
+Miss Kunduz Team is a modern learning management frontend for one teacher and their students. It includes groups, materials, homework, tests, ratings, chat, notifications, profile settings, and online lessons.
 
 The project is built as a React + TypeScript + Vite application and connects to separate backend services:
 

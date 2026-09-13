@@ -13,7 +13,7 @@ import {
   Users,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getGroups, getGroupStudents } from '@/modules/groups/api'
+import { getAllGroupStudents, getGroups } from '@/modules/groups/api'
 import { useCommonCopy } from '@/shared/i18n'
 import { getAttendance, saveAttendance } from '../api'
 import type { AttendanceRecord, AttendanceResponse, AttendanceStatus } from '../types'
@@ -249,11 +249,14 @@ export default function AttendancePage({ groupId: fixedGroupId }: { groupId?: nu
   }, [embedded, selectedGroupId, groups])
 
   const studentsQuery = useQuery({
-    queryKey: ['group-students', groupId],
-    queryFn: () => getGroupStudents(groupId as number),
+    queryKey: ['group-students', groupId, 'all-active'],
+    queryFn: () => getAllGroupStudents(groupId as number),
     enabled: groupId !== null,
   })
-  const students = studentsQuery.data?.results ?? []
+  const students = useMemo(
+    () => (studentsQuery.data ?? []).filter((student) => student.status === 'active'),
+    [studentsQuery.data],
+  )
 
   const attendanceQuery = useQuery({
     queryKey: ['attendance', groupId, month],
@@ -278,11 +281,22 @@ export default function AttendancePage({ groupId: fixedGroupId }: { groupId?: nu
     return students.filter((student) => `${student.full_name} ${student.email}`.toLowerCase().includes(query))
   }, [search, students])
 
-  const markedCount = Object.values(records).filter((record) => record.status).length
-  const presentCount = Object.values(records).filter((record) => record.status === 'present' || record.status === 'late').length
-  const scores = Object.values(records).map((record) => record.score).filter((score): score is number => typeof score === 'number')
+  const defaultSelectedDate = month === monthInputValue() ? todayInputValue() : days[0]?.value
+  const selectedDate = editingCell?.date.startsWith(`${month}-`) ? editingCell.date : defaultSelectedDate
+  const activeStudentIds = useMemo(() => new Set(students.map((student) => student.id)), [students])
+  const selectedDateRecords = Object.values(records).filter((record) => (
+    record.date === selectedDate
+    && activeStudentIds.has(record.student_id)
+    && record.status
+  ))
+  const markedCount = selectedDateRecords.length
+  const presentCount = selectedDateRecords.filter((record) => record.status === 'present' || record.status === 'late').length
+  const scores = Object.values(records)
+    .filter((record) => activeStudentIds.has(record.student_id))
+    .map((record) => record.score)
+    .filter((score): score is number => typeof score === 'number')
   const avgScore = scores.length ? (scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1) : '—'
-  const attendanceRate = markedCount ? Math.round((presentCount / markedCount) * 100) : 0
+  const attendanceRate = students.length ? Math.round((presentCount / students.length) * 100) : 0
   const isLoading = groupsQuery.isLoading || studentsQuery.isLoading || attendanceQuery.isFetching
 
   const saveMutation = useMutation({
@@ -311,7 +325,7 @@ export default function AttendancePage({ groupId: fixedGroupId }: { groupId?: nu
   }
 
   const markVisibleToday = () => {
-    const date = todayInputValue().slice(0, 7) === month ? todayInputValue() : days[0]?.value
+    const date = selectedDate
     if (!date) return
     const nextRecords = filteredStudents.map((student) => ({
       student_id: student.id,
@@ -493,7 +507,7 @@ export default function AttendancePage({ groupId: fixedGroupId }: { groupId?: nu
                     const studentScores = studentRecords.map((record) => record.score).filter((score): score is number => typeof score === 'number')
                     const studentAvg = studentScores.length ? (studentScores.reduce((sum, score) => sum + score, 0) / studentScores.length).toFixed(1) : '—'
                     return (
-                      <tr key={student.id} className="group border-b border-white/[0.045] hover:bg-white/[0.025]">
+                      <tr key={student.id} className="motion-table-row group border-b border-white/[0.045] hover:bg-white/[0.025]">
                         <td className="sticky left-0 z-10 bg-[#0f1422] px-4 py-3 text-sm font-semibold text-white/40 group-hover:bg-[#12192a]">{index + 1}</td>
                         <td className="sticky left-16 z-10 bg-[#0f1422] px-4 py-3 group-hover:bg-[#12192a]">
                           <div className="flex min-w-0 items-center gap-3">
@@ -516,8 +530,9 @@ export default function AttendancePage({ groupId: fixedGroupId }: { groupId?: nu
                           return (
                             <td key={day.value} className={`relative px-1.5 py-2 text-center ${day.isToday ? 'bg-accent/[0.06]' : day.isWeekend ? 'bg-white/[0.018]' : ''}`}>
                               <button
+                                key={`${day.value}:${record?.status ?? 'empty'}:${record?.score ?? 'none'}`}
                                 type="button"
-                                className={`mx-auto flex h-10 w-12 items-center justify-center rounded-lg text-sm font-black transition hover:scale-105 ${isOpen ? 'ring-2 ring-accent-light ring-offset-2 ring-offset-[#0f1422]' : ''} ${className}`}
+                                className={`attendance-status-cell mx-auto flex h-10 w-12 items-center justify-center rounded-lg text-sm font-black transition hover:scale-105 ${record ? 'has-status' : ''} ${isOpen ? 'ring-2 ring-accent-light ring-offset-2 ring-offset-[#0f1422]' : ''} ${className}`}
                                 onClick={() => setEditingCell(isOpen ? null : { date: day.value, studentId: student.id })}
                                 title={`${student.full_name} • ${day.value}`}
                               >

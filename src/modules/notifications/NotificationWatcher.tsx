@@ -50,7 +50,7 @@ export function NotificationWatcher() {
       shownIds.current.add(item.id)
 
       if (canUseBrowserNotifications()) {
-        new Notification(item.title || 'Kunduz Study Hub', {
+        new Notification(item.title || 'Miss Kunduz Team', {
           body: item.message,
         })
       } else {

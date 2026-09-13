@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   GraduationCap,
@@ -117,8 +118,29 @@ const testimonials = [
    COMPONENT
    ════════════════════════════════════ */
 export default function LandingPage() {
+  const landingRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const sections = landingRef.current?.querySelectorAll<HTMLElement>('[data-reveal]') ?? []
+    if (!('IntersectionObserver' in window)) {
+      sections.forEach((section) => section.classList.add('is-visible'))
+      return
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return
+        entry.target.classList.add('is-visible')
+        observer.unobserve(entry.target)
+      })
+    }, { threshold: 0.14, rootMargin: '0px 0px -8% 0px' })
+
+    sections.forEach((section) => observer.observe(section))
+    return () => observer.disconnect()
+  }, [])
+
   return (
-    <div className="relative min-h-dvh bg-navy overflow-x-hidden noise-overlay">
+    <div ref={landingRef} className="landing-motion relative min-h-dvh bg-navy overflow-x-hidden noise-overlay">
       {/* Mesh background */}
       <div className="mesh-gradient" />
 
@@ -207,9 +229,9 @@ export default function LandingPage() {
       </section>
 
       {/* ─── STATS BAR ─── */}
-      <section className="relative z-10 border-y border-white/[0.04] bg-white/[0.01] py-12">
+      <section data-reveal className="reveal-section relative z-10 border-y border-white/[0.04] bg-white/[0.01] py-12">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+          <div className="reveal-grid grid grid-cols-2 gap-8 md:grid-cols-4">
             {stats.map((s) => (
               <div key={s.label} className="text-center">
                 <div className="font-heading text-3xl font-bold text-white sm:text-4xl">{s.value}</div>
@@ -221,7 +243,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── FEATURES ─── */}
-      <section id="features" className="relative z-10 py-24 sm:py-32">
+      <section id="features" data-reveal className="reveal-section relative z-10 py-24 sm:py-32">
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-accent/15 bg-accent/[0.06] px-3 py-1">
@@ -236,7 +258,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="reveal-grid mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((f, i) => (
               <div
                 key={f.title}
@@ -262,7 +284,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── HOW IT WORKS ─── */}
-      <section id="how-it-works" className="relative z-10 py-24 sm:py-32">
+      <section id="how-it-works" data-reveal className="reveal-section relative z-10 py-24 sm:py-32">
         <div className="mx-auto max-w-5xl px-4">
           <div className="text-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-accent/15 bg-accent/[0.06] px-3 py-1">
@@ -274,7 +296,7 @@ export default function LandingPage() {
             </h2>
           </div>
 
-          <div className="mt-16 grid gap-8 md:grid-cols-3">
+          <div className="reveal-grid mt-16 grid gap-8 md:grid-cols-3">
             {steps.map((step) => (
               <div key={step.num} className="relative text-center">
                 {/* Number */}
@@ -291,7 +313,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── TESTIMONIALS ─── */}
-      <section id="testimonials" className="relative z-10 py-24 sm:py-32">
+      <section id="testimonials" data-reveal className="reveal-section relative z-10 py-24 sm:py-32">
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-accent/15 bg-accent/[0.06] px-3 py-1">
@@ -303,7 +325,7 @@ export default function LandingPage() {
             </h2>
           </div>
 
-          <div className="mt-16 grid gap-6 md:grid-cols-3">
+          <div className="reveal-grid mt-16 grid gap-6 md:grid-cols-3">
             {testimonials.map((t) => (
               <div key={t.name} className="glass-card p-6">
                 <div className="mb-4 flex gap-1">
@@ -328,7 +350,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── CTA ─── */}
-      <section className="relative z-10 py-24 sm:py-32">
+      <section data-reveal className="reveal-section relative z-10 py-24 sm:py-32">
         <div className="mx-auto max-w-4xl px-4">
           <div className="relative overflow-hidden rounded-3xl border border-accent/20 bg-gradient-to-br from-accent/[0.08] to-purple-500/[0.05] p-12 text-center sm:p-16">
             {/* Decorative glow */}
@@ -354,7 +376,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── FOOTER ─── */}
-      <footer className="relative z-10 border-t border-white/[0.04] py-12">
+      <footer data-reveal className="reveal-section relative z-10 border-t border-white/[0.04] py-12">
         <div className="mx-auto max-w-6xl px-4">
           <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
             <div className="flex items-center gap-2">

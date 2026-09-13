@@ -4,14 +4,14 @@ import { useParams, Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Copy, Users, BookOpen, ClipboardCheck, FileText,
-  Calendar, Plus, MoreHorizontal, Download, Search, Loader2,
+  Calendar, Plus, Download, Search, Loader2,
   Check, X, UserPlus, Edit3, Trash2, Video, CalendarCheck,
 } from 'lucide-react'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { toast } from 'sonner'
 
-import { approveStudent, getGroupDetail, getGroupStudents, getPendingStudents, rejectStudent } from '@/modules/groups/api'
+import { approveStudent, getAllGroupStudents, getGroupDetail, getPendingStudents, rejectStudent } from '@/modules/groups/api'
 import { deleteMaterial, getMaterials, updateMaterial } from '@/modules/materials/api'
 import { deleteHomework, getHomeworks, updateHomework } from '@/modules/homeworks/api'
 import { deleteTest, getTests, updateTest } from '@/modules/tests/api'
@@ -62,9 +62,10 @@ export default function GroupDetailPage() {
     enabled: !!groupId,
   })
 
-  const { data: studentsData, isLoading: isLoadingStudents } = useQuery({
-    queryKey: ['group-students', groupId],
-    queryFn: () => getGroupStudents(groupId),
+  const { data: students = [], isLoading: isLoadingStudents } = useQuery({
+    queryKey: ['group-students', groupId, 'all-active'],
+    queryFn: () => getAllGroupStudents(groupId),
+    select: (groupStudents) => groupStudents.filter((student) => student.status === 'active'),
     enabled: !!groupId && activeTab === 'students',
   })
 
@@ -92,7 +93,6 @@ export default function GroupDetailPage() {
     enabled: !!groupId && activeTab === 'tests',
   })
 
-  const students = studentsData?.results ?? []
   const materials = materialsData?.results ?? []
   const homeworks = homeworksData?.results ?? []
   const tests = testsData?.results ?? []
@@ -227,7 +227,7 @@ export default function GroupDetailPage() {
   )
 
   const tabs = [
-    { id: 'students', label: 'Students', icon: Users, count: Number(group?.students_count) || studentsData?.count || 0 },
+    { id: 'students', label: 'Students', icon: Users, count: students.length || Number(group?.students_count) || 0 },
     { id: 'requests', label: 'Requests', icon: UserPlus, count: requestsData?.count ?? 0 },
     { id: 'materials', label: 'Materials', icon: BookOpen, count: Number(group?.materials_count) || materialsData?.count || 0 },
     { id: 'homeworks', label: 'Homework', icon: FileText, count: Number(group?.homeworks_count) || homeworksData?.count || 0 },
@@ -283,6 +283,21 @@ export default function GroupDetailPage() {
     updateTestMutation.mutate()
   }
 
+  const handleAddContent = () => {
+    if (activeTab === 'homeworks') {
+      setIsHomeworkOpen(true)
+      return
+    }
+
+    if (activeTab === 'tests') {
+      setIsTestOpen(true)
+      return
+    }
+
+    if (activeTab !== 'materials') setActiveTab('materials')
+    setIsMaterialOpen(true)
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -299,12 +314,9 @@ export default function GroupDetailPage() {
                 <Video className="h-4 w-4" />
                 {t.onlineLesson}
               </Link>
-              <button type="button" className="btn-secondary text-sm">
+              <button type="button" className="btn-secondary text-sm" onClick={handleAddContent}>
                 <Plus className="h-4 w-4" />
                 Add Content
-              </button>
-              <button type="button" className="btn-ghost text-sm">
-                <MoreHorizontal className="h-4 w-4" />
               </button>
             </div>
           }
@@ -335,15 +347,15 @@ export default function GroupDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-white/[0.06] bg-white/[0.02] p-1">
+      <div className="motion-tabs flex gap-1 overflow-x-auto rounded-xl border border-white/[0.06] bg-white/[0.02] p-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition whitespace-nowrap ${
+            className={`motion-tab flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition whitespace-nowrap ${
               activeTab === tab.id
-                ? 'bg-accent/[0.1] text-accent-light shadow-sm'
+                ? 'motion-tab-active bg-accent/[0.1] text-accent-light shadow-sm'
                 : 'text-white/40 hover:bg-white/[0.04] hover:text-white/60'
             }`}
           >
@@ -359,7 +371,7 @@ export default function GroupDetailPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="min-h-[300px]">
+      <div className="motion-tab-panels min-h-[300px]">
         {activeTab === 'attendance' && <AttendancePage groupId={groupId} />}
 
         {activeTab === 'students' && (
@@ -394,7 +406,7 @@ export default function GroupDetailPage() {
                     </thead>
                     <tbody>
                       {filteredStudents.map((s) => (
-                        <tr key={s.id} className="border-b border-white/[0.04] transition hover:bg-accent/[0.03]">
+                        <tr key={s.id} className="motion-table-row border-b border-white/[0.04] transition hover:bg-accent/[0.03]">
                           <td className="px-5 py-3.5">
                             <Link to={`/students/${s.id}`} className="flex items-center gap-3">
                               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-accent/25 to-purple-500/25 text-xs font-bold text-white/70">
@@ -444,7 +456,7 @@ export default function GroupDetailPage() {
                     </thead>
                     <tbody>
                       {requests.map((s) => (
-                        <tr key={s.id} className="border-b border-white/[0.04] transition hover:bg-accent/[0.03]">
+                        <tr key={s.id} className="motion-table-row border-b border-white/[0.04] transition hover:bg-accent/[0.03]">
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-3">
                               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-accent/25 to-purple-500/25 text-xs font-bold text-white/70">

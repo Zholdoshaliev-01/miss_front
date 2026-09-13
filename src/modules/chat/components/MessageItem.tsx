@@ -1,6 +1,6 @@
 import { useState, memo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Trash2, Check, X, Clock, FileIcon, Download } from 'lucide-react'
+import { Pencil, Trash2, Check, CheckCheck, X, Clock, FileIcon, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { editMessage, deleteMessage } from '../api'
 import type { MessageOut } from '../types'
@@ -11,6 +11,8 @@ import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
 export interface MessageAttachment {
   file_url: string
   file_name: string
+  original_name?: string
+  url?: string
   mime_type: string
   file_size: number
   /** Local blob URL for optimistic preview (before upload completes) */
@@ -25,6 +27,7 @@ interface Props {
   isLastInGroup: boolean
   showTimestamp: boolean
   isOptimistic?: boolean
+  isRead?: boolean
   /** Optional attachment to render */
   attachment?: MessageAttachment | null
 }
@@ -53,6 +56,7 @@ function MessageItemInner({
   isLastInGroup,
   showTimestamp,
   isOptimistic,
+  isRead,
   attachment,
 }: Props) {
   const queryClient = useQueryClient()
@@ -82,6 +86,7 @@ function MessageItemInner({
   const time = new Date(message.created_at).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   })
 
   const getBubbleRadius = () => {
@@ -101,10 +106,14 @@ function MessageItemInner({
   const marginBottom = isLastInGroup ? '12px' : '2px'
   const backendAttachment = message.attachments?.[0]
   const currentAttachment = attachment || backendAttachment
+  const attachmentName = currentAttachment?.original_name
+    || currentAttachment?.url?.split('/').pop()
+    || currentAttachment?.file_url?.split('/').pop()
+    || currentAttachment?.file_name
+    || 'Файл'
 
   const hasAttachment = !!currentAttachment
-  // Backend may return `mime_type` or `mime`
-  const mimeType = currentAttachment?.mime_type || (currentAttachment as any)?.mime || ''
+  const mimeType = currentAttachment?.mime_type || ''
   const isAudio = mimeType.startsWith('audio/')
   const attachmentIsImage = hasAttachment && !isAudio && isImage(mimeType || currentAttachment?.file_url || '')
 
@@ -112,9 +121,9 @@ function MessageItemInner({
   // and it may be relative (e.g. "/media/chat/voice.webm")
   const rawUrl = currentAttachment?.localPreviewUrl
     || currentAttachment?.file_url
-    || (currentAttachment as any)?.url
+    || currentAttachment?.url
     || ''
-  const CHAT_BASE = import.meta.env.VITE_CHAT_API_URL || 'https://chat.kassi.space'
+  const CHAT_BASE = import.meta.env.VITE_CHAT_API_URL || 'https://chat.misskunduz.edu.kg'
   const imgSrc = rawUrl && rawUrl.startsWith('/') ? `${CHAT_BASE}${rawUrl}` : rawUrl
 
   if (message.is_deleted) {
@@ -202,7 +211,7 @@ function MessageItemInner({
               <a href={currentAttachment.file_url || imgSrc} target="_blank" rel="noopener noreferrer">
                 <img
                   src={imgSrc || undefined}
-                  alt={currentAttachment.file_name}
+                  alt={attachmentName}
                   className="block w-full"
                   style={{
                     maxHeight: 300,
@@ -242,7 +251,7 @@ function MessageItemInner({
                   <FileIcon className="h-5 w-5" style={{ color: isOwn ? 'white' : 'var(--color-accent-light)' }} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{currentAttachment.file_name}</p>
+                  <p className="truncate text-sm font-medium">{attachmentName}</p>
                   <p className="text-[11px] opacity-60">{formatFileSize(currentAttachment.file_size)}</p>
                 </div>
                 <Download className="h-4 w-4 shrink-0 opacity-50" />
@@ -280,7 +289,7 @@ function MessageItemInner({
             ) : (
               /* Hide text if it's just the filename or 'voice.webm' for audio messages */
               message.text
-                && !(hasAttachment && message.text === currentAttachment.file_name)
+                && !(hasAttachment && message.text === attachmentName)
                 && !(isAudio && message.text === 'voice.webm')
               ? (
                 <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.text}</p>
@@ -295,7 +304,9 @@ function MessageItemInner({
                 )}
                 <span className="text-[10px] opacity-50">{time}</span>
                 {isOwn && isOptimistic && <Clock className="h-3 w-3 opacity-40" />}
-                {isOwn && !isOptimistic && <Check className="h-3 w-3 opacity-50" />}
+                {isOwn && !isOptimistic && (isRead
+                  ? <CheckCheck className="h-3 w-3 opacity-70" />
+                  : <Check className="h-3 w-3 opacity-50" />)}
               </div>
             )}
           </div>
@@ -343,6 +354,7 @@ const MessageItem = memo(MessageItemInner, (prev, next) => {
     prev.isLastInGroup === next.isLastInGroup &&
     prev.showTimestamp === next.showTimestamp &&
     prev.isOptimistic === next.isOptimistic &&
+    prev.isRead === next.isRead &&
     prev.attachment?.file_url === next.attachment?.file_url &&
     prev.attachment?.localPreviewUrl === next.attachment?.localPreviewUrl
   )

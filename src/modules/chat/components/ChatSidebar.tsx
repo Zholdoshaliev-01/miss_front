@@ -8,6 +8,7 @@ import { useAuthStore } from '@/modules/auth/store/authStore'
 
 interface Props {
   activeRoomId: number | null
+  latestActiveMessage: MessageOut | null
   onSelectRoom: (room: RoomOut) => void
 }
 
@@ -19,7 +20,7 @@ function formatSidebarTime(dateStr: string): string {
   const diffDays = Math.floor(diffMs / 86_400_000)
 
   if (diffDays === 0 && d.getDate() === now.getDate()) {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
   }
   if (diffDays <= 1) return 'Yesterday'
   if (diffDays < 7) {
@@ -140,7 +141,7 @@ const SidebarRoomItem = memo(function SidebarRoomItem({
 
 /* ─── Sidebar ─── */
 
-export default function ChatSidebar({ activeRoomId, onSelectRoom }: Props) {
+export default function ChatSidebar({ activeRoomId, latestActiveMessage, onSelectRoom }: Props) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const accessToken = useAuthStore((s) => s.accessToken)
@@ -172,7 +173,11 @@ export default function ChatSidebar({ activeRoomId, onSelectRoom }: Props) {
             // Use cache if available (e.g. from opening a chat)
             const cached = queryClient.getQueryData<MessageOut[]>(['chat-messages', room.group_id])
             if (cached && cached.length > 0) {
-              results[room.group_id] = cached[cached.length - 1]
+              results[room.group_id] = cached.reduce((latest, message) => (
+                new Date(message.created_at).getTime() > new Date(latest.created_at).getTime()
+                  ? message
+                  : latest
+              ))
               return
             }
             const msgs = await getMessages(room.group_id, 1)
@@ -214,13 +219,28 @@ export default function ChatSidebar({ activeRoomId, onSelectRoom }: Props) {
     }
 
     fetchPreviews()
-    const interval = setInterval(fetchPreviews, 30_000)
-    return () => { cancelled = true; clearInterval(interval) }
+    return () => { cancelled = true }
   }, [rooms, queryClient])
 
-  const filtered = rooms.filter((r) =>
-    (r.title ?? '').toLowerCase().includes(search.toLowerCase()),
-  )
+  const filtered = rooms
+    .map((room) => ({
+      room,
+      lastMessage: room.id === activeRoomId && latestActiveMessage
+        ? latestActiveMessage
+        : lastMessages[room.group_id] ?? null,
+    }))
+    .filter(({ room }) => (
+      (room.title ?? '').toLowerCase().includes(search.toLowerCase())
+    ))
+    .sort((left, right) => {
+      const leftTime = left.lastMessage
+        ? new Date(left.lastMessage.created_at).getTime()
+        : 0
+      const rightTime = right.lastMessage
+        ? new Date(right.lastMessage.created_at).getTime()
+        : 0
+      return rightTime - leftTime
+    })
 
   return (
     <div className="flex h-full flex-col border-r" style={{ borderColor: 'var(--border-color)' }}>
@@ -271,13 +291,13 @@ export default function ChatSidebar({ activeRoomId, onSelectRoom }: Props) {
           </div>
         ) : (
           <div className="space-y-1">
-            {filtered.map((room) => (
+            {filtered.map(({ room, lastMessage }) => (
               <SidebarRoomItem
                 key={room.id}
                 room={room}
                 isActive={activeRoomId === room.id}
                 onSelect={() => onSelectRoom(room)}
-                lastMsg={lastMessages[room.group_id] ?? null}
+                lastMsg={lastMessage}
               />
             ))}
           </div>

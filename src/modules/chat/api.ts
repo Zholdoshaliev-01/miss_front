@@ -15,9 +15,16 @@ import type {
   ChatUserSummary,
 } from './types'
 
-const CHAT_BASE_URL = import.meta.env.VITE_CHAT_API_URL || 'https://chat.kassi.space'
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space'
+const CHAT_BASE_URL = import.meta.env.VITE_CHAT_API_URL || 'https://chat.misskunduz.edu.kg'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.misskunduz.edu.kg'
 let refreshPromise: Promise<string | null> | null = null
+
+function normalizeChatDateTime(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return new Date().toISOString()
+  const dateTime = value.trim()
+  const hasTimeZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(dateTime)
+  return hasTimeZone ? dateTime : `${dateTime}Z`
+}
 
 export const chatApi = axios.create({
   baseURL: CHAT_BASE_URL,
@@ -85,39 +92,61 @@ chatApi.interceptors.response.use(
 
 function normalizeAttachment(raw: any): AttachmentOut {
   const rawUrl = raw?.file_url ?? raw?.url ?? ''
-  const fileName = raw?.file_name
-    ?? (typeof rawUrl === 'string' ? rawUrl.split('/').pop() : '')
-    ?? 'attachment'
+  const fileName = raw?.original_name
+    || (typeof raw?.url === 'string' ? raw.url.split('/').pop() : undefined)
+    || (typeof rawUrl === 'string' ? rawUrl.split('/').pop() : undefined)
+    || 'Файл'
 
   return {
     id: Number(raw?.id) || 0,
     file_type: raw?.file_type ?? raw?.type ?? 'file',
     file_url: rawUrl,
     file_name: fileName,
+    original_name: raw?.original_name,
+    url: raw?.url,
     mime_type: raw?.mime_type ?? raw?.mime ?? '',
     file_size: Number(raw?.file_size ?? raw?.size) || 0,
     duration_sec: raw?.duration_sec ?? null,
-    created_at: raw?.created_at ?? new Date().toISOString(),
+    created_at: normalizeChatDateTime(raw?.created_at),
   }
 }
 
-function normalizeMessage(raw: any): MessageOut {
+export function normalizeMessage(raw: any): MessageOut {
   const senderId = Number(raw?.sender_id ?? raw?.user_id) || 0
 
   return {
     id: Number(raw?.id) || 0,
     room_id: Number(raw?.room_id) || 0,
+    group_id: Number(raw?.group_id) || undefined,
     sender_id: senderId,
     sender_name: raw?.sender_name ?? raw?.full_name ?? raw?.username ?? `User #${senderId}`,
     is_teacher: Boolean(raw?.is_teacher),
     text: raw?.text ?? '',
     is_deleted: Boolean(raw?.is_deleted),
     edited_at: raw?.edited_at ?? null,
-    created_at: raw?.created_at ?? new Date().toISOString(),
+    created_at: normalizeChatDateTime(raw?.created_at),
+    status: raw?.status,
     attachments: Array.isArray(raw?.attachments)
       ? raw.attachments.map(normalizeAttachment)
       : [],
   }
+}
+
+export function sortMessagesChronologically(messages: MessageOut[]): MessageOut[] {
+  return [...messages].sort((left, right) => {
+    const timeDifference = new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
+    return timeDifference || left.id - right.id
+  })
+}
+
+export async function getWebSocketTicket(): Promise<string> {
+  const accessToken = useAuthStore.getState().accessToken
+  if (!accessToken) throw new Error('Authentication is required')
+  const { data } = await chatApi.post<{ ticket?: string }>('/ws-ticket', undefined, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!data?.ticket) throw new Error('WebSocket ticket was not returned')
+  return data.ticket
 }
 
 function normalizeMember(raw: any): MemberOut {
@@ -214,10 +243,10 @@ export async function getMessages(groupId: number, limit = 50, beforeId?: number
     params: { limit, before_id: beforeId },
   })
 
-  if (Array.isArray(data)) return data.map(normalizeMessage)
-  if (data && Array.isArray(data.items)) return data.items.map(normalizeMessage)
-  if (data && Array.isArray(data.results)) return data.results.map(normalizeMessage)
-  if (data && Array.isArray(data.messages)) return data.messages.map(normalizeMessage)
+  if (Array.isArray(data)) return sortMessagesChronologically(data.map(normalizeMessage))
+  if (data && Array.isArray(data.items)) return sortMessagesChronologically(data.items.map(normalizeMessage))
+  if (data && Array.isArray(data.results)) return sortMessagesChronologically(data.results.map(normalizeMessage))
+  if (data && Array.isArray(data.messages)) return sortMessagesChronologically(data.messages.map(normalizeMessage))
 
   return [] as MessageOut[]
 }

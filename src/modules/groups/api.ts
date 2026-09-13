@@ -50,8 +50,31 @@ export async function deleteGroup(groupId: number) {
 import type { Student } from '@/modules/students/types'
 
 export async function getGroupStudents(groupId: number, params?: Record<string, string>) {
-  const { data } = await api.get<PaginatedResponse<Student>>(`/groups/${groupId}/students/`, { params })
+  const { data } = await api.get<PaginatedResponse<Student> | Student[]>(`/groups/${groupId}/students/`, { params })
   return data
+}
+
+export async function getAllGroupStudents(groupId: number) {
+  const firstPage = await getGroupStudents(groupId)
+  if (Array.isArray(firstPage)) return firstPage
+
+  const students = [...firstPage.results]
+  const visitedPages = new Set<string>()
+  let next = firstPage.next
+
+  while (next && !visitedPages.has(next)) {
+    visitedPages.add(next)
+    const { data } = await api.get<PaginatedResponse<Student> | Student[]>(next)
+    if (Array.isArray(data)) {
+      students.push(...data)
+      break
+    }
+
+    students.push(...data.results)
+    next = data.next
+  }
+
+  return students
 }
 
 export async function getPendingStudents(groupId: number) {

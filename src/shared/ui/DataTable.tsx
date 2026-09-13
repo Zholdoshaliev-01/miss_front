@@ -45,7 +45,7 @@ export function DataTable<T>({ columns, data, getRowKey, emptySlot, className }:
             <tr
               key={getRowKey(row, rowIndex)}
               className={cn(
-                'transition-colors duration-150',
+                'motion-table-row transition-colors duration-150',
                 'hover:bg-accent/[0.03]',
               )}
               style={{ borderBottom: '1px solid var(--border-color)' }}

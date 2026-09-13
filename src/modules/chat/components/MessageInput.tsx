@@ -266,6 +266,7 @@ export default function MessageInput({ onSend, isPending, onTyping }: Props) {
             onKeyDown={handleKeyDown}
             placeholder={file ? 'Add a caption…' : 'Type a message…'}
             rows={1}
+            maxLength={5000}
             className="input-field !rounded-xl !py-2.5 resize-none"
             style={{ lineHeight: `${LINE_HEIGHT}px`, maxHeight: `${LINE_HEIGHT * MAX_ROWS}px` }}
             disabled={isPending}

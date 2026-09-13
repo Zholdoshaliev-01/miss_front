@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Users, KeyRound, ArrowRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { joinGroup } from '../api'
+import { getStudentGroups, joinGroup } from '../api'
 import axios from 'axios'
 import { useCommonCopy } from '@/shared/i18n'
 
@@ -36,6 +36,45 @@ function getErrorMessage(err: unknown): string {
     return err.message || 'Failed to join group'
   }
   return 'Failed to join group'
+}
+
+type Membership = {
+  groupId: number
+  status: string
+}
+
+function getMemberships(data: unknown): Record<string, unknown>[] {
+  if (Array.isArray(data)) return data as Record<string, unknown>[]
+  if (!data || typeof data !== 'object') return []
+
+  const results = (data as { results?: unknown }).results
+  return Array.isArray(results) ? results as Record<string, unknown>[] : []
+}
+
+function findMembership(data: unknown, inviteCode: string): Membership | undefined {
+  for (const membership of getMemberships(data)) {
+    const nestedGroup = membership.group && typeof membership.group === 'object'
+      ? membership.group as Record<string, unknown>
+      : undefined
+    const membershipInviteCode = membership.invite_code ?? nestedGroup?.invite_code
+
+    if (String(membershipInviteCode ?? '') !== inviteCode) continue
+
+    const groupId = Number(membership.group_id ?? nestedGroup?.id ?? membership.group ?? membership.id)
+    if (!Number.isFinite(groupId)) continue
+
+    return {
+      groupId,
+      status: String(membership.status ?? '').toLowerCase(),
+    }
+  }
+
+  return undefined
+}
+
+function isDuplicateMembershipError(err: unknown): boolean {
+  const message = getErrorMessage(err).toLowerCase()
+  return message.includes('already') || message.includes('уже')
 }
 
 export function JoinLandingView() {
@@ -91,16 +130,81 @@ export default function JoinPage() {
   const navigate = useNavigate()
   const inviteCode = extractInviteCode(params.inviteCode ?? params['*'] ?? '')
 
+  const membershipQuery = useQuery({
+    queryKey: ['student-groups'],
+    queryFn: () => getStudentGroups(),
+    enabled: Boolean(inviteCode),
+  })
+
+  const activeMembership = findMembership(membershipQuery.data, inviteCode)
+  const activeGroupId = activeMembership?.status === 'active'
+    ? activeMembership.groupId
+    : undefined
+
+  useEffect(() => {
+    if (activeGroupId !== undefined) {
+      navigate(`/student/groups/${activeGroupId}`, { replace: true })
+    }
+  }, [activeGroupId, navigate])
+
   const mutation = useMutation({
     mutationFn: () => joinGroup(inviteCode),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      const refreshed = await membershipQuery.refetch()
+      const membership = findMembership(refreshed.data, inviteCode)
+
+      if (membership?.status === 'active') {
+        toast.success(data.detail || t.requestSent)
+        navigate(`/student/groups/${membership.groupId}`, { replace: true })
+        return
+      }
+
       toast.success(data.detail || t.requestSent)
       navigate('/pending', { replace: true })
     },
-    onError: (err) => {
+    onError: async (err) => {
+      if (isDuplicateMembershipError(err)) {
+        const refreshed = await membershipQuery.refetch()
+        if (refreshed.isError) return
+
+        const membership = findMembership(refreshed.data, inviteCode)
+
+        if (membership?.status === 'active') {
+          navigate(`/student/groups/${membership.groupId}`, { replace: true })
+          return
+        }
+
+        navigate('/pending', { replace: true })
+        return
+      }
+
       toast.error(getErrorMessage(err))
     },
   })
+
+  if (membershipQuery.isFetching || activeGroupId !== undefined) {
+    return (
+      <div className="glass-card flex items-center justify-center gap-3 p-8 text-sm text-white/55">
+        <Loader2 className="h-5 w-5 animate-spin text-accent-light" />
+        {t.checkingMembership}
+      </div>
+    )
+  }
+
+  if (membershipQuery.isError) {
+    return (
+      <div className="glass-card p-8 text-center">
+        <p className="text-sm text-white/55">{t.membershipCheckFailed}</p>
+        <button
+          type="button"
+          className="btn-primary mt-6 !py-2.5"
+          onClick={() => membershipQuery.refetch()}
+        >
+          {t.retry}
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="glass-card p-8 text-center">

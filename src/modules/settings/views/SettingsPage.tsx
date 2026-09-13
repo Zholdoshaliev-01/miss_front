@@ -176,7 +176,7 @@ export default function SettingsPage() {
 
     if (permission === 'granted') {
       setNotificationsEnabled(true)
-      new Notification('Kunduz Study Hub', {
+      new Notification('Miss Kunduz Team', {
         body: language === 'ru'
           ? 'Уведомления включены.'
           : language === 'ky'

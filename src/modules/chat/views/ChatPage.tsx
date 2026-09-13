@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   MessageSquarePlus,
@@ -13,11 +13,18 @@ import ChatSidebar from '../components/ChatSidebar'
 import MessageItem from '../components/MessageItem'
 import type { MessageAttachment } from '../components/MessageItem'
 import MessageInput from '../components/MessageInput'
-import { getMessages, sendMessage, getMembers, getUsersBulk } from '../api'
+import {
+  getMessages,
+  sendMessage as sendAttachmentMessage,
+  getMembers,
+  getUsersBulk,
+  sortMessagesChronologically,
+} from '../api'
 import type { RoomOut, MessageOut, ChatUserSummary, MemberOut } from '../types'
 import { useAuthStore } from '@/modules/auth/store/authStore'
 import { useChatScroll } from '../hooks/useChatScroll'
 import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
+import { useChatWebSocket } from '../hooks/useChatWebSocket'
 
 /* ─── Helpers ─── */
 
@@ -90,6 +97,7 @@ function getAvatarUrl(path?: string | null) {
 
 export default function ChatPage() {
   const user = useAuthStore((s) => s.user)
+  const accessToken = useAuthStore((s) => s.accessToken)
   const authUserId = Number((user as any)?.id) || 0
   const isTeacher = isTeacherRole(user?.role)
   const queryClient = useQueryClient()
@@ -98,6 +106,7 @@ export default function ChatPage() {
   // Optimistic messages + their attachments
   const [optimisticMessages, setOptimisticMessages] = useState<MessageOut[]>([])
   const [attachmentMap, setAttachmentMap] = useState<Record<number, MessageAttachment>>({})
+  const [readReceipts, setReadReceipts] = useState<Record<number, Record<number, number>>>({})
 
   // Right sidebar details state
   const [showDetails, setShowDetails] = useState(false)
@@ -109,13 +118,11 @@ export default function ChatPage() {
 
   /* ─── Queries ─── */
 
-  const { data: serverMessages = [], isLoading: messagesLoading } = useQuery<MessageOut[]>({
+  const { data: serverMessages = [], isLoading: messagesLoading, isSuccess: historyLoaded } = useQuery<MessageOut[]>({
     queryKey: ['chat-messages', activeRoom?.group_id],
     queryFn: () => getMessages(activeRoom!.group_id),
     enabled: !!activeRoom,
-    staleTime: 5_000,
-    refetchInterval: 8_000,
-    refetchIntervalInBackground: false,
+    staleTime: 0,
   })
 
   const { data: members = [] } = useQuery<MemberOut[]>({
@@ -150,6 +157,67 @@ export default function ChatPage() {
   }, [authUserId, chatUsers, user])
 
   const currentUserId = currentChatUser?.id ?? authUserId
+
+  const handleSocketMessage = useCallback((message: MessageOut, eventGroupId?: number) => {
+    const selectedRoom = activeRoom
+    const messageGroupId = eventGroupId || message.group_id
+      || (selectedRoom && (message.room_id === selectedRoom.id || message.room_id === selectedRoom.group_id)
+        ? selectedRoom.group_id
+        : undefined)
+    if (!messageGroupId) return
+
+    queryClient.setQueryData<MessageOut[]>(['chat-messages', messageGroupId], (previous = []) => {
+      if (previous.some((existing) => existing.id === message.id)) return previous
+      return sortMessagesChronologically([...previous, message])
+    })
+
+    if (messageGroupId === selectedRoom?.group_id && message.sender_id === currentUserId) {
+      setOptimisticMessages((previous) => {
+        const matchingIndex = previous.findIndex((item) => (
+          item.id === message.id || (item.id < 0 && item.text === message.text)
+        ))
+        return matchingIndex < 0 ? previous : previous.filter((_, index) => index !== matchingIndex)
+      })
+    }
+  }, [activeRoom, currentUserId, queryClient])
+
+  const handleMessageStatus = useCallback((messageId: number, status: string) => {
+    if (!activeRoom) return
+    queryClient.setQueryData<MessageOut[]>(['chat-messages', activeRoom.group_id], (previous = []) => (
+      previous.map((message) => message.id === messageId ? { ...message, status } : message)
+    ))
+    setOptimisticMessages((previous) => {
+      const exactMatch = previous.some((message) => message.id === messageId)
+      let pendingUpdated = false
+      return previous.map((message) => {
+        if (message.id === messageId) return { ...message, status }
+        if (!exactMatch && !pendingUpdated && message.id < 0) {
+          pendingUpdated = true
+          return { ...message, id: messageId, status }
+        }
+        return message
+      })
+    })
+  }, [activeRoom, queryClient])
+
+  const handleReadReceipt = useCallback((groupId: number, readerId: number, lastReadMessageId: number) => {
+    setReadReceipts((previous) => ({
+      ...previous,
+      [groupId]: {
+        ...previous[groupId],
+        [readerId]: Math.max(previous[groupId]?.[readerId] ?? 0, lastReadMessageId),
+      },
+    }))
+  }, [])
+
+  const { isConnected, sendMessage: sendSocketMessage, sendRead } = useChatWebSocket({
+    enabled: Boolean(activeRoom && historyLoaded && accessToken),
+    groupId: activeRoom?.group_id ?? null,
+    onMessage: handleSocketMessage,
+    onMessageStatus: handleMessageStatus,
+    onReadReceipt: handleReadReceipt,
+    onError: (detail) => toast.error(detail),
+  })
 
   const userById = useMemo(() => {
     const map = new Map<number, ChatUserSummary>()
@@ -202,8 +270,8 @@ export default function ChatPage() {
 
   const allMessages = useMemo(() => {
     const serverIds = new Set(namedServerMessages.map((m) => m.id))
-    const pendingOptimistic = optimisticMessages.filter((om) => !serverIds.has(om.id) && om.id < 0)
-    return [...namedServerMessages, ...pendingOptimistic]
+    const pendingOptimistic = optimisticMessages.filter((om) => !serverIds.has(om.id))
+    return sortMessagesChronologically([...namedServerMessages, ...pendingOptimistic])
   }, [namedServerMessages, optimisticMessages])
 
   const groupedMessages = useMemo(() => computeGrouping(allMessages), [allMessages])
@@ -223,7 +291,11 @@ export default function ChatPage() {
       } else {
         queryClient.setQueryData<MessageOut[]>(
           ['chat-messages', activeRoom.group_id],
-          (prev = []) => [...older, ...prev],
+          (prev = []) => {
+            const byId = new Map(prev.map((message) => [message.id, message]))
+            older.forEach((message) => byId.set(message.id, message))
+            return sortMessagesChronologically([...byId.values()])
+          },
         )
       }
     } catch {
@@ -245,27 +317,33 @@ export default function ChatPage() {
 
   /* ─── Send message (with optional file) ─── */
 
-  const sendMsgMut = useMutation({
-    mutationFn: ({ text, file }: { text: string; file?: File; optimisticId: number }) =>
-      sendMessage(activeRoom!.group_id, { text }, file),
-    onSuccess: (_, { file, optimisticId }) => {
+  const sendAttachmentMut = useMutation({
+    mutationFn: ({ text, file, groupId }: { text: string; file: File; groupId: number; optimisticId: number }) =>
+      sendAttachmentMessage(groupId, { text }, file),
+    onSuccess: (message, { file, groupId, optimisticId }) => {
       setOptimisticMessages((prev) => prev.filter((message) => message.id !== optimisticId))
-      if (file) {
-        setAttachmentMap((prev) => {
-          const updated = { ...prev }
-          for (const [idStr, att] of Object.entries(updated)) {
-            if (att.localPreviewUrl && att.file_name === file.name) {
-              URL.revokeObjectURL(att.localPreviewUrl)
-              delete updated[Number(idStr)]
-              break
-            }
+      setAttachmentMap((prev) => {
+        const updated = { ...prev }
+        for (const [idStr, att] of Object.entries(updated)) {
+          if (att.localPreviewUrl && att.file_name === file.name) {
+            URL.revokeObjectURL(att.localPreviewUrl)
+            delete updated[Number(idStr)]
+            break
           }
-          return updated
-        })
-      }
-      queryClient.invalidateQueries({ queryKey: ['chat-messages', activeRoom?.group_id] })
+        }
+        return updated
+      })
+      handleSocketMessage(message, groupId)
     },
-    onError: () => {
+    onError: (_, { optimisticId }) => {
+      setOptimisticMessages((previous) => previous.filter((message) => message.id !== optimisticId))
+      setAttachmentMap((previous) => {
+        const attachment = previous[optimisticId]
+        if (attachment?.localPreviewUrl) URL.revokeObjectURL(attachment.localPreviewUrl)
+        const updated = { ...previous }
+        delete updated[optimisticId]
+        return updated
+      })
       toast.error('Failed to send message')
     },
   })
@@ -273,6 +351,17 @@ export default function ChatPage() {
   const handleSend = useCallback(
     (text: string, file?: File) => {
       if (!activeRoom) return
+
+      const trimmed = text.trim()
+      if (trimmed.length > 5_000) {
+        toast.error('Message must be 5000 characters or fewer')
+        return
+      }
+      if (!file && !trimmed) return
+      if (!file && !sendSocketMessage(activeRoom.group_id, trimmed)) {
+        toast.error('Chat is reconnecting. Please try again.')
+        return
+      }
 
       const msgId = --optimisticIdCounter
 
@@ -284,10 +373,11 @@ export default function ChatPage() {
         sender_name: currentChatUser?.username || user?.username || 'You',
         sender_avatar: currentChatUser?.avatar ?? (user as any)?.avatar ?? null,
         is_teacher: isTeacher,
-        text,
+        text: trimmed,
         is_deleted: false,
         edited_at: null,
         created_at: new Date().toISOString(),
+        status: 'pending',
       }
 
       if (file) {
@@ -308,10 +398,25 @@ export default function ChatPage() {
       setOptimisticMessages((prev) => [...prev, optimistic])
       forceScrollToBottom()
 
-      sendMsgMut.mutate({ text, file, optimisticId: msgId })
+      if (file) sendAttachmentMut.mutate({
+        text: trimmed,
+        file,
+        groupId: activeRoom.group_id,
+        optimisticId: msgId,
+      })
     },
-    [activeRoom, currentUserId, currentChatUser, user, isTeacher, forceScrollToBottom, sendMsgMut],
+    [activeRoom, currentUserId, currentChatUser, user, isTeacher, forceScrollToBottom, sendSocketMessage, sendAttachmentMut],
   )
+
+  const lastReadSentRef = useRef<Record<number, number>>({})
+  useEffect(() => {
+    if (!activeRoom || !isConnected) return
+    const latestMessage = [...serverMessages].reverse().find((message) => message.id > 0)
+    if (!latestMessage || (lastReadSentRef.current[activeRoom.group_id] ?? 0) >= latestMessage.id) return
+    if (sendRead(activeRoom.group_id, latestMessage.id)) {
+      lastReadSentRef.current[activeRoom.group_id] = latestMessage.id
+    }
+  }, [activeRoom, isConnected, sendRead, serverMessages])
 
   /* ─── Room change ─── */
 
@@ -336,7 +441,11 @@ export default function ChatPage() {
       <div className="flex h-full w-full">
         {/* Sidebar */}
         <div className="hidden w-80 shrink-0 md:block" style={{ background: 'var(--color-bg-alt)' }}>
-          <ChatSidebar activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} />
+          <ChatSidebar
+            activeRoomId={activeRoom?.id ?? null}
+            latestActiveMessage={namedServerMessages.at(-1) ?? null}
+            onSelectRoom={handleSelectRoom}
+          />
         </div>
 
         {/* Main chat area */}
@@ -460,6 +569,12 @@ export default function ChatPage() {
                           isLastInGroup={isLastInGroup}
                           showTimestamp={showTimestamp}
                           isOptimistic={msg.id < 0}
+                          isRead={Boolean(
+                            currentUserId
+                            && Object.entries(readReceipts[activeRoom.group_id] ?? {}).some(
+                              ([readerId, lastReadId]) => Number(readerId) !== currentUserId && lastReadId >= msg.id,
+                            )
+                          )}
                           attachment={attachmentMap[msg.id] ?? null}
                         />
                       </div>

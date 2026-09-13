@@ -21,11 +21,11 @@ export function Modal({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-fade-in" />
+        <Dialog.Overlay className="modal-overlay-motion fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
         <Dialog.Content
           className={cn(
             'fixed left-1/2 top-1/2 z-50 w-[min(100vw-2rem,500px)] -translate-x-1/2 -translate-y-1/2',
-            'glass-card p-6 shadow-2xl shadow-black/40 animate-slide-up max-h-[85vh] overflow-y-auto',
+            'modal-content-motion glass-card p-6 shadow-2xl shadow-black/40 max-h-[85vh] overflow-y-auto',
           )}
         >
           <div className="flex items-start justify-between">

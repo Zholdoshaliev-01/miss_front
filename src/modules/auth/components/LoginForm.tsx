@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { User, Lock } from 'lucide-react'
+import { User, Lock, Eye, EyeOff } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { LoginPayload } from '../types'
 import { cn } from '@/shared/utils/cn'
@@ -18,6 +19,7 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ onSubmit, isPending, className }: LoginFormProps) {
+  const [showPassword, setShowPassword] = useState(false)
   const {
     register,
     handleSubmit,
@@ -67,12 +69,24 @@ export function LoginForm({ onSubmit, isPending, className }: LoginFormProps) {
           <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/25" />
           <input
             id="login-password"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             autoComplete="current-password"
-            className="input-field input-with-icon"
+            className="input-field input-with-icon !pr-11"
             placeholder="••••••••"
             {...register('password')}
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword((visible) => !visible)}
+            className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-white/35 transition hover:bg-white/[0.06] hover:text-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-pressed={showPassword}
+            title={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword
+              ? <EyeOff className="h-4 w-4" />
+              : <Eye className="h-4 w-4" />}
+          </button>
         </div>
         {errors.password ? <p className="mt-1.5 text-xs text-status-expelled">{errors.password.message}</p> : null}
       </div>

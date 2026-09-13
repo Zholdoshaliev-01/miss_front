@@ -13,7 +13,7 @@ import {
   Users,
   Settings,
 } from 'lucide-react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useState } from 'react'
 import { logoutRequest } from '@/modules/auth/api'
@@ -68,6 +68,7 @@ function NavItem({ to, label, icon: Icon, collapsed }: { to: string; label: stri
 
 export function StudentLayout() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { t } = useCommonCopy()
   const refreshToken = useAuthStore((s) => s.refreshToken)
   const clearAuth = useAuthStore((s) => s.clearAuth)
@@ -156,7 +157,7 @@ export function StudentLayout() {
 
       {/* ─── MAIN CONTENT ─── */}
       <main className="relative z-10 flex min-h-dvh flex-col">
-        <div className="page-transition mx-auto w-full max-w-[1400px] flex-1 p-4 md:p-6">
+        <div key={location.pathname} className="page-transition mx-auto w-full max-w-[1400px] flex-1 p-4 md:p-6">
           <Outlet />
         </div>
       </main>

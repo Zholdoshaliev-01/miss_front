@@ -49,6 +49,7 @@ export interface MessageCreate {
 export interface MessageOut {
   id: number
   room_id: number
+  group_id?: number
   sender_id: number
   sender_name: string
   sender_avatar?: string | null
@@ -58,6 +59,7 @@ export interface MessageOut {
   edited_at: string | null
   created_at: string
   attachments?: AttachmentOut[]
+  status?: string
 }
 
 export interface ChatUserSummary {
@@ -79,6 +81,8 @@ export interface AttachmentOut {
   file_type: string
   file_url: string
   file_name: string
+  original_name?: string
+  url?: string
   mime_type: string
   file_size: number
   duration_sec: number | null
