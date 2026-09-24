@@ -21,13 +21,14 @@ export function Modal({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="modal-overlay-motion fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
-        <Dialog.Content
-          className={cn(
-            'fixed left-1/2 top-1/2 z-50 w-[min(100vw-2rem,500px)] -translate-x-1/2 -translate-y-1/2',
-            'modal-content-motion glass-card p-6 shadow-2xl shadow-black/40 max-h-[85vh] overflow-y-auto',
-          )}
-        >
+        <Dialog.Overlay className="modal-overlay-motion fixed inset-0 z-50 bg-black/65 backdrop-blur-[2px]" />
+        <div className="pointer-events-none fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4 sm:p-6">
+          <Dialog.Content
+            className={cn(
+              'pointer-events-auto relative w-full max-w-[560px]',
+              'modal-content-motion glass-card max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 shadow-2xl shadow-black/40 sm:max-h-[calc(100dvh-3rem)] sm:p-6',
+            )}
+          >
           <div className="flex items-start justify-between">
             <Dialog.Title className="font-heading text-lg font-bold text-white/90">
               {title}
@@ -47,7 +48,8 @@ export function Modal({
             </Dialog.Description>
           ) : null}
           <div className="mt-6">{children}</div>
-        </Dialog.Content>
+          </Dialog.Content>
+        </div>
       </Dialog.Portal>
     </Dialog.Root>
   )

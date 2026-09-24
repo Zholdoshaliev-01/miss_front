@@ -499,7 +499,7 @@ export default function ChatPage() {
   /* ─── Render ─── */
 
   return (
-    <div className="glass-card overflow-hidden flex h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] w-full">
+    <div className="chat-shell glass-card overflow-hidden flex h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] w-full">
       <div className="flex h-full w-full">
         {/* Sidebar */}
         <div className="hidden w-80 shrink-0 md:block" style={{ background: 'var(--color-bg-alt)' }}>
@@ -592,7 +592,7 @@ export default function ChatPage() {
               <div
                 ref={containerRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto px-6 py-4 relative"
+                className="chat-message-area flex-1 overflow-y-auto px-4 py-4 sm:px-6 relative"
                 style={{ background: 'var(--color-bg)' }}
               >
                 {messagesLoading && allMessages.length === 0 ? (

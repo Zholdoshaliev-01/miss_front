@@ -74,6 +74,10 @@
   --btn-secondary-border: rgba(0, 0, 0, 0.1);
   --scrollbar-thumb: rgba(0, 0, 0, 0.12);
   --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+  --academy-bg:
+    radial-gradient(circle at 74% 8%, rgba(99, 102, 241, 0.10), transparent 34%),
+    radial-gradient(circle at 12% 82%, rgba(14, 165, 233, 0.07), transparent 32%),
+    linear-gradient(135deg, #f8faff 0%, #f2f5fb 48%, #eef2ff 100%);
 }
 
 /* ─── Light Theme Global Overrides ─── */
@@ -416,6 +420,25 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12), 0 0 20px rgba(99, 102, 241, 0.06);
   background: rgba(255, 255, 255, 0.06);
 }
+:root[data-theme='light'] .chat-message-area {
+  background: #f8faff !important;
+}
+
+:root[data-theme='light'] .chat-shell {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.10);
+  box-shadow: 0 18px 50px rgba(30, 41, 59, 0.10);
+}
+
+:root[data-theme='light'] .modal-content-motion {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: 0 24px 70px rgba(30, 41, 59, 0.2);
+}
+
+:root[data-theme='light'] .input-field:focus {
+  background: #ffffff;
+}
 
 .input-with-icon {
   padding-left: 2.75rem;
@@ -647,13 +670,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @keyframes modal-content-in {
-  from { opacity: 0; transform: translate(-50%, calc(-50% + 12px)) scale(0.97); }
-  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes modal-content-out {
-  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  to { opacity: 0; transform: translate(-50%, calc(-50% + 8px)) scale(0.98); }
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(8px) scale(0.98); }
 }
 
 .landing-motion .mesh-gradient::before {
