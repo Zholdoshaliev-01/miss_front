@@ -7,12 +7,14 @@ import {
   RoomAudioRenderer,
   TrackToggle,
   useConnectionState,
+  useLocalParticipant,
   useParticipants,
   useRoomContext,
   useSpeakingParticipants,
   useTracks,
+  type LocalUserChoices,
+  type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react'
-import type { LocalUserChoices, TrackReferenceOrPlaceholder } from '@livekit/components-core'
 import { ConnectionState, Track } from 'livekit-client'
 import { Camera, CameraOff, Loader2, Mic, MicOff, PhoneOff, RefreshCw, Users, X } from 'lucide-react'
 import type { LiveKitCredentials, LiveLesson } from '../api'
@@ -108,6 +110,53 @@ function ParticipantPanel({ onClose }: { onClose: () => void }) {
   )
 }
 
+function MediaToggle({
+  kind,
+  onDeviceError,
+}: {
+  kind: 'microphone' | 'camera'
+  onDeviceError: (error: Error) => void
+}) {
+  const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant()
+  const [isChanging, setIsChanging] = useState(false)
+  const isMicrophone = kind === 'microphone'
+  const isEnabled = isMicrophone ? isMicrophoneEnabled : isCameraEnabled
+  const Icon = isMicrophone
+    ? (isEnabled ? Mic : MicOff)
+    : (isEnabled ? Camera : CameraOff)
+
+  const toggle = async () => {
+    if (isChanging) return
+    setIsChanging(true)
+    try {
+      if (isMicrophone) {
+        await localParticipant.setMicrophoneEnabled(!isEnabled)
+      } else {
+        await localParticipant.setCameraEnabled(!isEnabled)
+      }
+    } catch (error) {
+      onDeviceError(error instanceof Error ? error : new Error('Не удалось изменить состояние устройства.'))
+    } finally {
+      setIsChanging(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className="livekit-control-button"
+      data-lk-enabled={isEnabled}
+      disabled={isChanging}
+      aria-pressed={isEnabled}
+      aria-label={isEnabled ? 'Выключить устройство' : 'Включить устройство'}
+      onClick={toggle}
+    >
+      {isChanging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+      <span className="hidden sm:inline">{isMicrophone ? 'Микрофон' : 'Камера'}</span>
+    </button>
+  )
+}
+
 function RoomContent({ lesson, groupName, displayName, isTeacher, isEnding, onEnd, onLeave, onDeviceError }: {
   lesson: LiveLesson
   groupName: string
@@ -179,8 +228,8 @@ function RoomContent({ lesson, groupName, displayName, isTeacher, isEnding, onEn
 
       <footer className="livekit-controls">
         <div className="flex items-center justify-center gap-2 sm:gap-3">
-          <TrackToggle source={Track.Source.Microphone} className="livekit-control-button" onDeviceError={onDeviceError}><span className="hidden sm:inline">Микрофон</span></TrackToggle>
-          <TrackToggle source={Track.Source.Camera} className="livekit-control-button" onDeviceError={onDeviceError}><span className="hidden sm:inline">Камера</span></TrackToggle>
+          <MediaToggle kind="microphone" onDeviceError={onDeviceError} />
+          <MediaToggle kind="camera" onDeviceError={onDeviceError} />
           <TrackToggle source={Track.Source.ScreenShare} className="livekit-control-button" onDeviceError={onDeviceError}><span className="hidden sm:inline">Экран</span></TrackToggle>
           <button type="button" className={`livekit-control-button ${showParticipants ? 'is-active' : ''}`} onClick={() => setShowParticipants((value) => !value)}>
             <Users className="h-4 w-4" /><span className="hidden sm:inline">Участники</span>

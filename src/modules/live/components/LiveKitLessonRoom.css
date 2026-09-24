@@ -45,6 +45,7 @@
 .livekit-control-button[data-lk-enabled='false'] { color: #fda4af !important; background: rgba(244,63,94,.12) !important; }
 .livekit-end-button { border-color: rgba(244,63,94,.32) !important; color: #fff !important; background: linear-gradient(135deg,#ef4444,#dc2626) !important; box-shadow: 0 8px 24px rgba(239,68,68,.2); }
 .livekit-end-button:disabled { cursor: wait; opacity: .55; }
+.livekit-control-button:disabled { cursor: wait; opacity: .65; }
 
 .livekit-error-toast { position: absolute; z-index: 40; top: 88px; right: 1rem; display: flex; width: min(420px,calc(100% - 2rem)); align-items: center; gap: .75rem; padding: .875rem; border: 1px solid rgba(251,191,36,.24); border-radius: .875rem; background: rgba(30,24,15,.95); box-shadow: 0 16px 48px rgba(0,0,0,.35); backdrop-filter: blur(16px); }
 
