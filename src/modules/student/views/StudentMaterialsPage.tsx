@@ -5,15 +5,10 @@ import { getStudentGroups, getStudentMaterials } from '@/modules/student/api'
 import type { Group } from '@/modules/groups/types'
 import type { Material } from '@/modules/materials/types'
 import { useCommonCopy } from '@/shared/i18n'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space'
+import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
 
 function buildFileUrl(file?: string | null) {
-  if (!file) return null
-  if (file.startsWith('http://') || file.startsWith('https://')) return file
-  const base = API_BASE_URL.replace(/\/api\/?$/, '').replace(/\/$/, '')
-  const path = file.startsWith('/') ? file : `/${file}`
-  return `${base}${path}`
+  return file ? buildMediaUrl(file) : null
 }
 
 function formatDate(dateStr?: string) {
@@ -75,10 +70,7 @@ export default function StudentMaterialsPage() {
     queryFn: () => getStudentGroups(),
   })
   
-  const groups: StudentGroupOption[] = (Array.isArray(rawGroupsData)
-    ? rawGroupsData
-    : (rawGroupsData as any)?.results ?? []
-  ).map(normalizeStudentGroup)
+  const groups: StudentGroupOption[] = (rawGroupsData?.results ?? []).map(normalizeStudentGroup)
 
   const activeGroupId = selectedGroupId
 

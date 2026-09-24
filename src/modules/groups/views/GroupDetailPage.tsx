@@ -1,23 +1,25 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import axios from 'axios'
 import {
   ArrowLeft, Copy, Users, BookOpen, ClipboardCheck, FileText,
   Calendar, Plus, Download, Search, Loader2,
-  Check, X, UserPlus, Edit3, Trash2, Video, CalendarCheck,
+  Check, X, UserPlus, UserMinus, Edit3, Trash2, Video, CalendarCheck,
 } from 'lucide-react'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { toast } from 'sonner'
 
-import { approveStudent, getAllGroupStudents, getGroupDetail, getPendingStudents, rejectStudent } from '@/modules/groups/api'
+import { approveStudent, expelStudent, getAllGroupStudents, getGroupDetail, getPendingStudents, rejectStudent } from '@/modules/groups/api'
 import { deleteMaterial, getMaterials, updateMaterial } from '@/modules/materials/api'
 import { deleteHomework, getHomeworks, updateHomework } from '@/modules/homeworks/api'
 import { deleteTest, getTests, updateTest } from '@/modules/tests/api'
 import type { Material } from '@/modules/materials/types'
 import type { Homework } from '@/modules/homeworks/types'
 import type { CourseTest } from '@/modules/tests/types'
+import type { Student } from '@/modules/students/types'
 import { useCommonCopy } from '@/shared/i18n'
 
 import { Modal } from '@/shared/ui/Modal'
@@ -38,12 +40,22 @@ function toDateInputValue(value?: string) {
   return date.toISOString().slice(0, 10)
 }
 
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (!axios.isAxiosError(error)) return error instanceof Error ? error.message : fallback
+  const data = error.response?.data as { detail?: string } | undefined
+  return data?.detail || error.message || fallback
+}
+
 export default function GroupDetailPage() {
   const queryClient = useQueryClient()
   const { t } = useCommonCopy()
   const { groupId: groupIdStr } = useParams()
   const groupId = Number(groupIdStr)
-  const [activeTab, setActiveTab] = useState('students')
+  const [searchParams] = useSearchParams()
+  const initialTab = ['students', 'requests', 'materials', 'homeworks', 'tests', 'attendance'].includes(searchParams.get('tab') ?? '')
+    ? (searchParams.get('tab') as string)
+    : 'students'
+  const [activeTab, setActiveTab] = useState(initialTab)
   const [search, setSearch] = useState('')
   const [isMaterialOpen, setIsMaterialOpen] = useState(false)
   const [isHomeworkOpen, setIsHomeworkOpen] = useState(false)
@@ -52,6 +64,7 @@ export default function GroupDetailPage() {
   const [editingHomework, setEditingHomework] = useState<Homework | null>(null)
   const [editingTest, setEditingTest] = useState<CourseTest | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
+  const [studentToExpel, setStudentToExpel] = useState<Student | null>(null)
   const [materialDraft, setMaterialDraft] = useState({ title: '', description: '', file: null as File | null })
   const [homeworkDraft, setHomeworkDraft] = useState({ title: '', description: '', due_date: '', file: null as File | null })
   const [testDraft, setTestDraft] = useState({ title: '', description: '' })
@@ -106,8 +119,8 @@ export default function GroupDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['group', groupId] })
       toast.success('Student approved')
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.detail || err.message || 'Failed to approve student')
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, 'Failed to approve student'))
     },
   })
 
@@ -117,9 +130,21 @@ export default function GroupDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['group-requests', groupId] })
       toast.success('Request rejected')
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.detail || err.message || 'Failed to reject request')
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, 'Failed to reject request'))
     },
+  })
+
+  const expelMutation = useMutation({
+    mutationFn: (studentMembershipId: number) => expelStudent(studentMembershipId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['group-students', groupId] })
+      queryClient.invalidateQueries({ queryKey: ['group-requests', groupId] })
+      queryClient.invalidateQueries({ queryKey: ['group', groupId] })
+      setStudentToExpel(null)
+      toast.success('Student expelled')
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error, 'Failed to expel student')),
   })
 
   const invalidateContent = (kind: ContentKind) => {
@@ -145,7 +170,7 @@ export default function GroupDetailPage() {
       setMaterialDraft({ title: '', description: '', file: null })
       toast.success(t.materialUpdated)
     },
-    onError: (err: any) => toast.error(err.response?.data?.detail || err.message || t.failedUpdateContent),
+    onError: (error) => toast.error(getApiErrorMessage(error, t.failedUpdateContent)),
   })
 
   const updateHomeworkMutation = useMutation({
@@ -164,7 +189,7 @@ export default function GroupDetailPage() {
       setHomeworkDraft({ title: '', description: '', due_date: '', file: null })
       toast.success(t.homeworkUpdated)
     },
-    onError: (err: any) => toast.error(err.response?.data?.detail || err.message || t.failedUpdateContent),
+    onError: (error) => toast.error(getApiErrorMessage(error, t.failedUpdateContent)),
   })
 
   const updateTestMutation = useMutation({
@@ -178,7 +203,7 @@ export default function GroupDetailPage() {
       setTestDraft({ title: '', description: '' })
       toast.success(t.testUpdated)
     },
-    onError: (err: any) => toast.error(err.response?.data?.detail || err.message || t.failedUpdateContent),
+    onError: (error) => toast.error(getApiErrorMessage(error, t.failedUpdateContent)),
   })
 
   const deleteContentMutation = useMutation({
@@ -198,7 +223,7 @@ export default function GroupDetailPage() {
       )
       setDeleteTarget(null)
     },
-    onError: (err: any) => toast.error(err.response?.data?.detail || err.message || t.failedDeleteContent),
+    onError: (error) => toast.error(getApiErrorMessage(error, t.failedDeleteContent)),
   })
 
   const openMaterialEditor = (material: Material) => {
@@ -402,6 +427,7 @@ export default function GroupDetailPage() {
                         <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/35 hidden sm:table-cell">Email</th>
                         <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/35">Status</th>
                         <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/35 hidden md:table-cell">Joined</th>
+                        <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-white/35">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -421,6 +447,17 @@ export default function GroupDetailPage() {
                           </td>
                           <td className="px-5 py-3.5 text-white/35 hidden md:table-cell">
                             {new Date(s.joined_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-5 py-3.5 text-right">
+                            <button
+                              type="button"
+                              className="btn-danger !px-3 !py-1.5 !text-xs"
+                              disabled={expelMutation.isPending}
+                              onClick={() => setStudentToExpel(s)}
+                            >
+                              <UserMinus className="h-3.5 w-3.5" />
+                              Expel
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -832,6 +869,17 @@ export default function GroupDetailPage() {
           </button>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={!!studentToExpel}
+        onOpenChange={(open) => !open && setStudentToExpel(null)}
+        title="Expel student?"
+        description={studentToExpel ? `${studentToExpel.full_name || studentToExpel.email} will lose access to this group.` : undefined}
+        confirmLabel={expelMutation.isPending ? 'Expelling...' : 'Expel'}
+        cancelLabel={t.cancel}
+        variant="danger"
+        onConfirm={() => studentToExpel && expelMutation.mutate(studentToExpel.id)}
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

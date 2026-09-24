@@ -1,7 +1,5 @@
+import { DJANGO_MEDIA_BASE_URL, resolveServiceUrl } from '@/core/config/api'
+
 export function buildMediaUrl(path: string) {
-  if (!path) return ''
-  if (path.startsWith('http://') || path.startsWith('https://')) return path
-  const base = (import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space').replace(/\/api\/?$/, '').replace(/\/$/, '')
-  const p = path.startsWith('/') ? path : `/${path}`
-  return `${base}${p}`
+  return resolveServiceUrl(DJANGO_MEDIA_BASE_URL, path)
 }

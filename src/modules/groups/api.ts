@@ -1,19 +1,11 @@
 import { api } from '@/core/api/axios'
+import { getAllPages, type PaginatedResponse } from '@/core/api/pagination'
 import type { Group } from './types'
-
-/* ─── Paginated response wrapper ─── */
-interface PaginatedResponse<T> {
-  count: number
-  next: string | null
-  previous: string | null
-  results: T[]
-}
 
 /* ─── Groups CRUD (GroupViewSet) ─── */
 
 export async function getGroups(params?: Record<string, string>) {
-  const { data } = await api.get<PaginatedResponse<Group>>('/groups/', { params })
-  return data
+  return getAllPages<Group>(api, '/groups/', params)
 }
 
 export async function getGroupDetail(groupId: number) {
@@ -55,31 +47,12 @@ export async function getGroupStudents(groupId: number, params?: Record<string, 
 }
 
 export async function getAllGroupStudents(groupId: number) {
-  const firstPage = await getGroupStudents(groupId)
-  if (Array.isArray(firstPage)) return firstPage
-
-  const students = [...firstPage.results]
-  const visitedPages = new Set<string>()
-  let next = firstPage.next
-
-  while (next && !visitedPages.has(next)) {
-    visitedPages.add(next)
-    const { data } = await api.get<PaginatedResponse<Student> | Student[]>(next)
-    if (Array.isArray(data)) {
-      students.push(...data)
-      break
-    }
-
-    students.push(...data.results)
-    next = data.next
-  }
-
-  return students
+  const data = await getAllPages<Student>(api, `/groups/${groupId}/students/`)
+  return data.results
 }
 
 export async function getPendingStudents(groupId: number) {
-  const { data } = await api.get<PaginatedResponse<Student>>(`/groups/${groupId}/requests/`)
-  return data
+  return getAllPages<Student>(api, `/groups/${groupId}/requests/`)
 }
 
 export async function approveStudent(studentId: number) {
@@ -89,6 +62,11 @@ export async function approveStudent(studentId: number) {
 
 export async function rejectStudent(studentId: number) {
   const { data } = await api.patch(`/students/${studentId}/reject/`)
+  return data
+}
+
+export async function expelStudent(studentMembershipId: number) {
+  const { data } = await api.patch(`/students/${studentMembershipId}/expel/`)
   return data
 }
 
@@ -106,11 +84,9 @@ export interface LeaderboardEntry {
 }
 
 export async function getGroupLeaderboard(groupId: number) {
-  const { data } = await api.get<PaginatedResponse<LeaderboardEntry>>(`/groups/${groupId}/leaderboard/`)
-  return data
+  return getAllPages<LeaderboardEntry>(api, `/groups/${groupId}/leaderboard/`)
 }
 
 export async function getGlobalLeaderboard() {
-  const { data } = await api.get<PaginatedResponse<LeaderboardEntry>>('/leaderboard/')
-  return data
+  return getAllPages<LeaderboardEntry>(api, '/leaderboard/')
 }

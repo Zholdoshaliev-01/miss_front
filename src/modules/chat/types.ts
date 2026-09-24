@@ -1,12 +1,4 @@
 /* ─── Room ─── */
-export interface RoomCreate {
-  group_id: number
-  owner_id: number
-  title: string
-  description?: string | null
-  is_private?: boolean
-}
-
 export interface RoomOut {
   id: number
   group_id: number
@@ -20,10 +12,6 @@ export interface RoomOut {
 }
 
 /* ─── Members ─── */
-export interface MemberCreate {
-  user_id: number
-}
-
 export interface MemberOut {
   id: number
   user_id: number
@@ -35,10 +23,6 @@ export interface MemberOut {
   is_online: boolean
   joined_at: string
   last_seen: string | null
-}
-
-export interface RoomDetailOut extends RoomOut {
-  members: MemberOut[]
 }
 
 /* ─── Message ─── */
@@ -88,6 +72,11 @@ export interface AttachmentOut {
   duration_sec: number | null
   created_at: string
   localPreviewUrl?: string
+}
+
+export interface AttachmentUploadResponse {
+  message_id: number
+  attachment: AttachmentOut
 }
 
 /* ─── Read State ─── */

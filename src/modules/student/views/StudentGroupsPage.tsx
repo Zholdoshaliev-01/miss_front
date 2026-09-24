@@ -4,8 +4,7 @@ import { Link } from 'react-router-dom'
 import { getStudentGroups } from '@/modules/student/api'
 import type { Group } from '@/modules/groups/types'
 import { useCommonCopy } from '@/shared/i18n'
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space'
+import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
 
 type StudentGroupCard = {
   id: number
@@ -57,10 +56,7 @@ export default function StudentGroupsPage() {
   })
 
   // Handle both paginated response ({ results: [...] }) and flat array ([...])
-  const groups: StudentGroupCard[] = (Array.isArray(rawGroupsData)
-    ? rawGroupsData
-    : (rawGroupsData as any)?.results ?? []
-  ).map(normalizeStudentGroup)
+  const groups: StudentGroupCard[] = (rawGroupsData?.results ?? []).map(normalizeStudentGroup)
 
   return (
     <div className="space-y-6">
@@ -103,9 +99,7 @@ export default function StudentGroupsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {groups.map((group) => {
-            const imgSrc = group.group_image 
-              ? (group.group_image.startsWith('http') ? group.group_image : `${BASE_URL}${group.group_image}`)
-              : null
+            const imgSrc = group.group_image ? buildMediaUrl(group.group_image) : null
 
             return (
               <div key={group.membershipId} className="glass-card glass-card-hover card-shine group p-5">

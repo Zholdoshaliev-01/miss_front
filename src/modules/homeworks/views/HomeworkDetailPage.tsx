@@ -3,17 +3,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Calendar, CheckCircle, Clock, Download, FileText, Loader2, MessageSquare, Star, Users, X } from 'lucide-react'
 import { toast } from 'sonner'
+import axios from 'axios'
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { createReview, getHomeworkAnswers, getHomeworkDetail, updateReview } from '@/modules/homeworks/api'
 import type { HomeworkAnswer, Review } from '@/modules/homeworks/types'
 import { useCommonCopy } from '@/shared/i18n'
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space'
+import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
 
 function buildFileUrl(file?: string | null) {
-  if (!file) return null
-  return file.startsWith('http') ? file : `${BASE_URL}${file}`
+  return file ? buildMediaUrl(file) : null
 }
 
 function formatDate(dateStr: string | null | undefined, fallback: string) {
@@ -41,9 +40,10 @@ function getAnswerReview(answer: HomeworkAnswer): Review | null {
   }
 }
 
-function getErrorMessage(err: any, fallback: string) {
-  const data = err.response?.data
-  return data?.detail || data?.rating?.[0] || data?.text?.[0] || data?.user?.[0] || err.message || fallback
+function getErrorMessage(error: unknown, fallback: string) {
+  if (!axios.isAxiosError(error)) return error instanceof Error ? error.message : fallback
+  const data = error.response?.data as { detail?: string; rating?: string[]; text?: string[]; user?: string[] } | undefined
+  return data?.detail || data?.rating?.[0] || data?.text?.[0] || data?.user?.[0] || error.message || fallback
 }
 
 export default function HomeworkDetailPage() {

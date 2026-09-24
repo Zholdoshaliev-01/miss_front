@@ -1,7 +1,8 @@
 import axios, { type AxiosInstance } from 'axios'
 import { useAuthStore } from '@/modules/auth/store/authStore'
+import { DJANGO_API_BASE_URL } from '@/core/config/api'
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'https://api.misskunduz.edu.kg'
+const baseURL = DJANGO_API_BASE_URL
 
 export const api = axios.create({
   baseURL,

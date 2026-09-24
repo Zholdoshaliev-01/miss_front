@@ -6,6 +6,7 @@ import { editMessage, deleteMessage } from '../api'
 import type { MessageOut } from '../types'
 import CustomAudioPlayer from './CustomAudioPlayer'
 import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
+import { CHAT_API_BASE_URL, resolveServiceUrl } from '@/core/config/api'
 
 /** Attachment data for rendering files/images in messages */
 export interface MessageAttachment {
@@ -123,8 +124,7 @@ function MessageItemInner({
     || currentAttachment?.file_url
     || currentAttachment?.url
     || ''
-  const CHAT_BASE = import.meta.env.VITE_CHAT_API_URL || 'https://chat.misskunduz.edu.kg'
-  const imgSrc = rawUrl && rawUrl.startsWith('/') ? `${CHAT_BASE}${rawUrl}` : rawUrl
+  const attachmentUrl = resolveServiceUrl(CHAT_API_BASE_URL, rawUrl)
 
   if (message.is_deleted) {
     return (
@@ -208,9 +208,9 @@ function MessageItemInner({
           {/* ─── Attachment rendering ─── */}
           {hasAttachment && attachmentIsImage && (
             <div className={`${!isOwn && isFirstInGroup ? 'pt-1.5' : ''}`}>
-              <a href={currentAttachment.file_url || imgSrc} target="_blank" rel="noopener noreferrer">
+              <a href={attachmentUrl} target="_blank" rel="noopener noreferrer">
                 <img
-                  src={imgSrc || undefined}
+                  src={attachmentUrl || undefined}
                   alt={attachmentName}
                   className="block w-full"
                   style={{
@@ -226,14 +226,14 @@ function MessageItemInner({
 
           {hasAttachment && isAudio && (
             <div className="mx-2 mt-1 mb-1">
-              <CustomAudioPlayer src={imgSrc || ''} isOwn={isOwn} />
+              <CustomAudioPlayer src={attachmentUrl} isOwn={isOwn} />
             </div>
           )}
 
           {hasAttachment && !attachmentIsImage && !isAudio && (
             <div className="mx-3 mt-2.5 mb-1">
               <a
-                href={currentAttachment.file_url || '#'}
+                href={attachmentUrl || '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 rounded-xl p-2.5 transition hover:opacity-80"

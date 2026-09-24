@@ -3,18 +3,19 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { ArrowLeft, CalendarDays, Download, FileText, Loader2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
-import { getStudentGroups, getStudentHomeworks, submitHomeworkAnswer } from '@/modules/student/api'
+import axios from 'axios'
+import { getStudentGroups, getStudentHomeworks, submitHomeworkAnswer, type StudentHomework } from '@/modules/student/api'
+import type { Group } from '@/modules/groups/types'
 import { FileUploadZone } from '@/shared/ui/FileUploadZone'
 import { useCommonCopy } from '@/shared/i18n'
+import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024
 const ALLOWED_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'doc', 'docx']
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif']
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space'
 
 function buildFileUrl(file?: string | null) {
-  if (!file) return null
-  return file.startsWith('http') ? file : `${BASE_URL}${file}`
+  return file ? buildMediaUrl(file) : null
 }
 
 function getFileName(file?: string | null) {
@@ -39,7 +40,11 @@ function formatDate(dateStr: string | null | undefined, fallback: string) {
   })
 }
 
-function normalizeStudentGroup(raw: any) {
+type StudentGroupSummary = { id: number; group_name: string }
+type StudentGroupShape = Group & { group_id?: number; name?: string }
+type HomeworkRecord = StudentHomework & { groupId?: number; groupName?: string }
+
+function normalizeStudentGroup(raw: StudentGroupShape): StudentGroupSummary {
   return {
     id: raw.group_id ?? raw.id,
     group_name: raw.group_name ?? raw.name ?? 'Untitled group',
@@ -58,13 +63,14 @@ function validateFile(file: File | null, messages: { fileTooLarge: string; allow
   return null
 }
 
-function getErrorMessage(err: any, fallback: string) {
-  const data = err.response?.data
+function getErrorMessage(error: unknown, fallback: string) {
+  if (!axios.isAxiosError(error)) return error instanceof Error ? error.message : fallback
+  const data = error.response?.data as { detail?: string; file?: string[]; comment?: string[] } | undefined
   return (
     data?.detail ||
     data?.file?.[0] ||
     data?.comment?.[0] ||
-    err.message ||
+    error.message ||
     fallback
   )
 }
@@ -84,31 +90,26 @@ export default function HomeworkSubmitPage() {
     queryFn: () => getStudentGroups(),
   })
 
-  const groups = (Array.isArray(rawGroupsData)
-    ? rawGroupsData
-    : (rawGroupsData as any)?.results ?? []
-  ).map(normalizeStudentGroup)
+  const groups = (rawGroupsData?.results ?? []).map(normalizeStudentGroup)
 
   const homeworkQueries = useQueries({
-    queries: groups.map((group: any) => ({
+    queries: groups.map((group) => ({
       queryKey: ['student-homeworks', group.id],
       queryFn: () => getStudentHomeworks(group.id),
       enabled: Number.isFinite(homeworkId),
     })),
   })
 
-  const homeworkRecords = homeworkQueries.flatMap((query, index) => {
-    const rawHomeworks = Array.isArray(query.data)
-      ? query.data
-      : (query.data as any)?.results ?? []
-    return rawHomeworks.map((homework: any) => ({
+  const homeworkRecords: HomeworkRecord[] = homeworkQueries.flatMap((query, index) => {
+    const rawHomeworks = query.data?.results ?? []
+    return rawHomeworks.map((homework) => ({
       ...homework,
       groupId: groups[index]?.id,
       groupName: groups[index]?.group_name,
     }))
   })
 
-  const homework = homeworkRecords.find((item: any) => item.id === homeworkId)
+  const homework = homeworkRecords.find((item) => item.id === homeworkId)
   const isLoadingHomework = groupsLoading || homeworkQueries.some((query) => query.isLoading)
   const homeworkFileUrl = buildFileUrl(homework?.file)
   const homeworkFileName = getFileName(homework?.file)

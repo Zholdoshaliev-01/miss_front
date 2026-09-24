@@ -14,7 +14,14 @@ export interface RegisterPayload {
 }
 
 export interface AuthResponse {
-  user: { username: string; email: string; role?: string }
+  user: {
+    id: number
+    username: string
+    full_name?: string
+    email: string
+    avatar?: string | null
+    role?: 'teacher' | 'student'
+  }
   access: string
   refresh: string
 }

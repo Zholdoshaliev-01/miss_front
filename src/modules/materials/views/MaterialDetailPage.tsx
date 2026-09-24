@@ -4,15 +4,10 @@ import { ArrowLeft, BookOpen, Download, Calendar, FileType, Loader2 } from 'luci
 import { PageHeader } from '@/shared/ui/PageHeader'
 import { getMaterialDetail } from '@/modules/materials/api'
 import { useCommonCopy } from '@/shared/i18n'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.kassi.space'
+import { buildMediaUrl } from '@/shared/utils/buildMediaUrl'
 
 function buildFileUrl(file?: string | null) {
-  if (!file) return null
-  if (file.startsWith('http://') || file.startsWith('https://')) return file
-  const base = API_BASE_URL.replace(/\/api\/?$/, '').replace(/\/$/, '')
-  const path = file.startsWith('/') ? file : `/${file}`
-  return `${base}${path}`
+  return file ? buildMediaUrl(file) : null
 }
 
 function formatDate(dateStr?: string | null) {

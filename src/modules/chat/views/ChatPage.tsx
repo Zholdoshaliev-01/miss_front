@@ -4,6 +4,7 @@ import {
   MessageSquarePlus,
   Loader2,
   MessagesSquare,
+  ChevronLeft,
   ChevronDown,
   Info,
   X,
@@ -15,9 +16,11 @@ import type { MessageAttachment } from '../components/MessageItem'
 import MessageInput from '../components/MessageInput'
 import {
   getMessages,
-  sendMessage as sendAttachmentMessage,
+  uploadAttachment,
   getMembers,
+  getReadState,
   getUsersBulk,
+  markAsRead,
   sortMessagesChronologically,
 } from '../api'
 import type { RoomOut, MessageOut, ChatUserSummary, MemberOut } from '../types'
@@ -98,7 +101,7 @@ function getAvatarUrl(path?: string | null) {
 export default function ChatPage() {
   const user = useAuthStore((s) => s.user)
   const accessToken = useAuthStore((s) => s.accessToken)
-  const authUserId = Number((user as any)?.id) || 0
+  const authUserId = Number(user?.id) || 0
   const isTeacher = isTeacherRole(user?.role)
   const queryClient = useQueryClient()
   const [activeRoom, setActiveRoom] = useState<RoomOut | null>(null)
@@ -130,6 +133,26 @@ export default function ChatPage() {
     queryFn: () => getMembers(activeRoom!.group_id),
     enabled: !!activeRoom,
   })
+
+  const { data: initialReadState = [] } = useQuery({
+    queryKey: ['chat-read-state', activeRoom?.group_id],
+    queryFn: () => getReadState(activeRoom!.group_id),
+    enabled: !!activeRoom,
+    staleTime: 0,
+  })
+
+  useEffect(() => {
+    if (!activeRoom || initialReadState.length === 0) return
+    setReadReceipts((previous) => ({
+      ...previous,
+      [activeRoom.group_id]: initialReadState.reduce<Record<number, number>>((state, entry) => {
+        if (entry.user_id > 0 && entry.last_read_message_id != null) {
+          state[entry.user_id] = entry.last_read_message_id
+        }
+        return state
+      }, { ...previous[activeRoom.group_id] }),
+    }))
+  }, [activeRoom, initialReadState])
 
   const chatUserIds = useMemo(() => {
     const ids = [
@@ -200,6 +223,35 @@ export default function ChatPage() {
     })
   }, [activeRoom, queryClient])
 
+  const handleMessageEdited = useCallback((
+    messageId: number,
+    changes: { text?: string; edited_at?: string | null },
+    eventGroupId?: number,
+  ) => {
+    const groupId = eventGroupId ?? activeRoom?.group_id
+    if (!groupId) return
+    queryClient.setQueryData<MessageOut[]>(['chat-messages', groupId], (previous = []) => (
+      previous.map((message) => {
+        if (message.id !== messageId) return message
+        return {
+          ...message,
+          text: changes.text ?? message.text,
+          edited_at: changes.edited_at === undefined ? message.edited_at : changes.edited_at,
+        }
+      })
+    ))
+  }, [activeRoom, queryClient])
+
+  const handleMessageDeleted = useCallback((messageId: number, eventGroupId?: number) => {
+    const groupId = eventGroupId ?? activeRoom?.group_id
+    if (!groupId) return
+    queryClient.setQueryData<MessageOut[]>(['chat-messages', groupId], (previous = []) => (
+      previous.map((message) => message.id === messageId
+        ? { ...message, text: '', is_deleted: true, attachments: [] }
+        : message)
+    ))
+  }, [activeRoom, queryClient])
+
   const handleReadReceipt = useCallback((groupId: number, readerId: number, lastReadMessageId: number) => {
     setReadReceipts((previous) => ({
       ...previous,
@@ -215,6 +267,8 @@ export default function ChatPage() {
     groupId: activeRoom?.group_id ?? null,
     onMessage: handleSocketMessage,
     onMessageStatus: handleMessageStatus,
+    onMessageEdited: handleMessageEdited,
+    onMessageDeleted: handleMessageDeleted,
     onReadReceipt: handleReadReceipt,
     onError: (detail) => toast.error(detail),
   })
@@ -227,10 +281,10 @@ export default function ChatPage() {
       map.set(currentUserId, {
         id: currentUserId,
         username: existing?.username || user?.username || '',
-        full_name: existing?.full_name || (user as any)?.full_name || '',
+        full_name: existing?.full_name || user?.full_name || '',
         email: existing?.email || user?.email || '',
         role: existing?.role || user?.role as ChatUserSummary['role'],
-        avatar: existing?.avatar || (user as any)?.avatar || null,
+        avatar: existing?.avatar || user?.avatar || null,
       })
     }
     return map
@@ -319,8 +373,9 @@ export default function ChatPage() {
 
   const sendAttachmentMut = useMutation({
     mutationFn: ({ text, file, groupId }: { text: string; file: File; groupId: number; optimisticId: number }) =>
-      sendAttachmentMessage(groupId, { text }, file),
-    onSuccess: (message, { file, groupId, optimisticId }) => {
+      uploadAttachment(groupId, file, text),
+    onSuccess: async (_, { file, groupId, optimisticId }) => {
+      await queryClient.refetchQueries({ queryKey: ['chat-messages', groupId], exact: true })
       setOptimisticMessages((prev) => prev.filter((message) => message.id !== optimisticId))
       setAttachmentMap((prev) => {
         const updated = { ...prev }
@@ -333,7 +388,6 @@ export default function ChatPage() {
         }
         return updated
       })
-      handleSocketMessage(message, groupId)
     },
     onError: (_, { optimisticId }) => {
       setOptimisticMessages((previous) => previous.filter((message) => message.id !== optimisticId))
@@ -371,7 +425,7 @@ export default function ChatPage() {
         room_id: activeRoom.id,
         sender_id: currentUserId,
         sender_name: currentChatUser?.username || user?.username || 'You',
-        sender_avatar: currentChatUser?.avatar ?? (user as any)?.avatar ?? null,
+        sender_avatar: currentChatUser?.avatar ?? user?.avatar ?? null,
         is_teacher: isTeacher,
         text: trimmed,
         is_deleted: false,
@@ -410,12 +464,19 @@ export default function ChatPage() {
 
   const lastReadSentRef = useRef<Record<number, number>>({})
   useEffect(() => {
-    if (!activeRoom || !isConnected) return
+    if (!activeRoom) return
     const latestMessage = [...serverMessages].reverse().find((message) => message.id > 0)
     if (!latestMessage || (lastReadSentRef.current[activeRoom.group_id] ?? 0) >= latestMessage.id) return
+
+    const groupId = activeRoom.group_id
+    lastReadSentRef.current[groupId] = latestMessage.id
     if (sendRead(activeRoom.group_id, latestMessage.id)) {
-      lastReadSentRef.current[activeRoom.group_id] = latestMessage.id
+      return
     }
+
+    void markAsRead(groupId, latestMessage.id).catch(() => {
+      if (lastReadSentRef.current[groupId] === latestMessage.id) delete lastReadSentRef.current[groupId]
+    })
   }, [activeRoom, isConnected, sendRead, serverMessages])
 
   /* ─── Room change ─── */
@@ -426,6 +487,7 @@ export default function ChatPage() {
         if (att.localPreviewUrl) URL.revokeObjectURL(att.localPreviewUrl)
       })
       setActiveRoom(room)
+      setShowDetails(false)
       setOptimisticMessages([])
       setAttachmentMap({})
       setHasMoreOlder(true)
@@ -448,8 +510,18 @@ export default function ChatPage() {
           />
         </div>
 
+        {!activeRoom && (
+          <div className="w-full md:hidden" style={{ background: 'var(--color-bg-alt)' }}>
+            <ChatSidebar
+              activeRoomId={null}
+              latestActiveMessage={null}
+              onSelectRoom={handleSelectRoom}
+            />
+          </div>
+        )}
+
         {/* Main chat area */}
-        <div className="flex flex-1 flex-col">
+        <div className={`${activeRoom ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col`}>
           {activeRoom ? (
             <>
               {/* Chat header */}
@@ -462,6 +534,19 @@ export default function ChatPage() {
                 }}
               >
                 <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setActiveRoom(null)
+                      setShowDetails(false)
+                    }}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition hover:bg-[var(--color-surface-hover)] md:hidden"
+                    style={{ color: 'var(--color-text-muted)' }}
+                    aria-label="Back to chat rooms"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
                   {activeRoom.image_url ? (
                     <img
                       src={activeRoom.image_url}
@@ -606,7 +691,7 @@ export default function ChatPage() {
               {/* Input */}
               <MessageInput
                 onSend={handleSend}
-                isPending={false}
+                isPending={sendAttachmentMut.isPending}
               />
             </>
           ) : (
@@ -630,7 +715,7 @@ export default function ChatPage() {
         {/* Right Sidebar (Chat Details) */}
         {activeRoom && showDetails && (
           <div 
-            className="w-72 shrink-0 border-l flex flex-col transition-all duration-300 z-10 relative" 
+            className="hidden w-72 shrink-0 flex-col border-l transition-all duration-300 z-10 relative md:flex"
             style={{ borderColor: 'var(--border-color)', background: 'var(--color-bg-alt)' }}
           >
             <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border-color)' }}>

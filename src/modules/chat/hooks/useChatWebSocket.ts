@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getWebSocketTicket, normalizeMessage } from '../api'
 import type { MessageOut } from '../types'
+import { CHAT_API_BASE_URL } from '@/core/config/api'
 
-const CHAT_BASE_URL = import.meta.env.VITE_CHAT_API_URL || 'https://chat.misskunduz.edu.kg'
 const RECONNECT_DELAYS = [1_000, 2_000, 4_000, 8_000, 10_000]
 
 interface Options {
@@ -10,6 +10,8 @@ interface Options {
   groupId: number | null
   onMessage: (message: MessageOut, eventGroupId?: number) => void
   onMessageStatus: (messageId: number, status: string) => void
+  onMessageEdited: (messageId: number, changes: { text?: string; edited_at?: string | null }, eventGroupId?: number) => void
+  onMessageDeleted: (messageId: number, eventGroupId?: number) => void
   onReadReceipt: (groupId: number, readerId: number, lastReadMessageId: number) => void
   onError: (detail: string) => void
 }
@@ -19,6 +21,8 @@ export function useChatWebSocket({
   groupId,
   onMessage,
   onMessageStatus,
+  onMessageEdited,
+  onMessageDeleted,
   onReadReceipt,
   onError,
 }: Options) {
@@ -27,13 +31,13 @@ export function useChatWebSocket({
   const reconnectAttemptRef = useRef(0)
   const generationRef = useRef(0)
   const groupIdRef = useRef(groupId)
-  const handlersRef = useRef({ onMessage, onMessageStatus, onReadReceipt, onError })
+  const handlersRef = useRef({ onMessage, onMessageStatus, onMessageEdited, onMessageDeleted, onReadReceipt, onError })
   const [isConnected, setIsConnected] = useState(false)
 
   useEffect(() => {
     groupIdRef.current = groupId
-    handlersRef.current = { onMessage, onMessageStatus, onReadReceipt, onError }
-  }, [groupId, onError, onMessage, onMessageStatus, onReadReceipt])
+    handlersRef.current = { onMessage, onMessageStatus, onMessageEdited, onMessageDeleted, onReadReceipt, onError }
+  }, [groupId, onError, onMessage, onMessageDeleted, onMessageEdited, onMessageStatus, onReadReceipt])
 
   const sendJson = useCallback((payload: object) => {
     const socket = socketRef.current
@@ -72,7 +76,7 @@ export function useChatWebSocket({
         const ticket = await getWebSocketTicket()
         if (stopped || generation !== generationRef.current) return
 
-        const wsBase = CHAT_BASE_URL.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:')
+        const wsBase = CHAT_API_BASE_URL.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:')
         const socket = new WebSocket(`${wsBase}/ws/messages?ticket=${encodeURIComponent(ticket)}`)
         socketRef.current = socket
 
@@ -85,6 +89,8 @@ export function useChatWebSocket({
             status?: unknown
             reader_id?: unknown
             last_read_message_id?: unknown
+            text?: unknown
+            edited_at?: unknown
             detail?: unknown
           }
           try {
@@ -105,6 +111,30 @@ export function useChatWebSocket({
             handlersRef.current.onMessage(normalizeMessage(data.message), Number(data.group_id) || undefined)
           } else if (data.event === 'message_status') {
             handlersRef.current.onMessageStatus(Number(data.message_id), String(data.status ?? 'sent'))
+          } else if (data.event === 'message_edited') {
+            const rawMessage = data.message && typeof data.message === 'object'
+              ? data.message as Record<string, unknown>
+              : data as Record<string, unknown>
+            const messageId = Number(rawMessage.id ?? data.message_id)
+            if (messageId) {
+              handlersRef.current.onMessageEdited(messageId, {
+                text: typeof rawMessage.text === 'string' ? rawMessage.text : undefined,
+                edited_at: typeof rawMessage.edited_at === 'string'
+                  ? rawMessage.edited_at
+                  : rawMessage.edited_at === null ? null : undefined,
+              }, Number(data.group_id ?? rawMessage.group_id) || groupIdRef.current || undefined)
+            }
+          } else if (data.event === 'message_deleted') {
+            const rawMessage = data.message && typeof data.message === 'object'
+              ? data.message as Record<string, unknown>
+              : {}
+            const messageId = Number(rawMessage.id ?? data.message_id)
+            if (messageId) {
+              handlersRef.current.onMessageDeleted(
+                messageId,
+                Number(data.group_id ?? rawMessage.group_id) || groupIdRef.current || undefined,
+              )
+            }
           } else if (data.event === 'read_receipt') {
             handlersRef.current.onReadReceipt(
               Number(data.group_id),
